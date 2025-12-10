@@ -27,7 +27,7 @@ Deploy Coupon Sentinel to production in minutes.
    - Root Directory: `backend`
    - Runtime: Python 3
    - Build Command: `pip install -r requirements.txt`
-   - Start Command: `uvicorn backend.app:app --host 0.0.0.0 --port $PORT`
+   - Start Command: `uvicorn app:app --host 0.0.0.0 --port $PORT`
 
 4. **Deploy!** Your API will be at: `https://coupon-sentinel-api.onrender.com`
 
@@ -85,7 +85,7 @@ docker-compose up --build
 2. **Create new project from GitHub**
 
 3. **Add two services:**
-   - **Backend:** Set root to `backend`, start command: `uvicorn backend.app:app --host 0.0.0.0 --port $PORT`
+   - **Backend:** Set root to `backend`, start command: `uvicorn app:app --host 0.0.0.0 --port $PORT`
    - **Frontend:** Set root to `frontend`, Railway auto-detects Vite
 
 4. **Add environment variable** to frontend:

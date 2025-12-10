@@ -11,9 +11,9 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Optional
 
-from .models import OptimizeRequest, OptimizeResponse, ShoppingItem
-from .engines import optimize_shopping_list
-from .providers import get_mock_store_items, get_mock_coupons, SUPPORTED_STORES
+from models import OptimizeRequest, OptimizeResponse, ShoppingItem
+from engines import optimize_shopping_list
+from providers import get_mock_store_items, get_mock_coupons, SUPPORTED_STORES
 
 
 # ============================================================================
@@ -214,7 +214,7 @@ async def quick_optimize(
 
 
 # ============================================================================
-# Run with: uvicorn backend.app:app --reload
+# Run with: uvicorn app:app --reload
 # ============================================================================
 
 if __name__ == "__main__":

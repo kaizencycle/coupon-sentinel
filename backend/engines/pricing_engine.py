@@ -10,11 +10,11 @@ Core optimization logic:
 
 from typing import List, Dict, Tuple, Optional
 import math
-from ..models import (
+from models import (
     ShoppingItem, StoreItem, Coupon, OptimizeRequest, OptimizeResponse,
     OptimizedItem, StorePlan, AppliedCoupon, RebateOpportunity
 )
-from .stacking_logic import calculate_best_coupon_stack, find_rebate_opportunities
+from engines.stacking_logic import calculate_best_coupon_stack, find_rebate_opportunities
 
 
 def match_items(
