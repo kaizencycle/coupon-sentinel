@@ -24,10 +24,10 @@ Deploy Coupon Sentinel to production in minutes.
 
 3. **Create a new Web Service:**
    - Name: `coupon-sentinel-api`
-   - Root Directory: `backend`
+   - Root Directory: *(leave empty - use repo root)*
    - Runtime: Python 3
-   - Build Command: `pip install -r requirements.txt`
-   - Start Command: `uvicorn app:app --host 0.0.0.0 --port $PORT`
+   - Build Command: `pip install -r backend/requirements.txt`
+   - Start Command: `uvicorn backend.app:app --host 0.0.0.0 --port $PORT`
 
 4. **Deploy!** Your API will be at: `https://coupon-sentinel-api.onrender.com`
 
@@ -85,7 +85,7 @@ docker-compose up --build
 2. **Create new project from GitHub**
 
 3. **Add two services:**
-   - **Backend:** Set root to `backend`, start command: `uvicorn app:app --host 0.0.0.0 --port $PORT`
+   - **Backend:** Use repo root, start command: `uvicorn backend.app:app --host 0.0.0.0 --port $PORT`
    - **Frontend:** Set root to `frontend`, Railway auto-detects Vite
 
 4. **Add environment variable** to frontend:
@@ -175,6 +175,7 @@ render logs -s coupon-sentinel-api
 - Check Python version (needs 3.10+)
 - Verify `requirements.txt` includes all dependencies
 - Check build logs for errors
+- **ModuleNotFoundError: No module named 'backend'** - Make sure you're using the start command `uvicorn backend.app:app --host 0.0.0.0 --port $PORT` from the repo root (not from the `backend/` subdirectory)
 
 ### Frontend can't reach backend
 
