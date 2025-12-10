@@ -6,7 +6,7 @@ Replace this with real API integrations in production.
 """
 
 from typing import List
-from ..models import StoreItem, Coupon, CouponType, DiscountType
+from models import StoreItem, Coupon, CouponType, DiscountType
 
 
 SUPPORTED_STORES = ["Target", "Walmart", "Costco"]

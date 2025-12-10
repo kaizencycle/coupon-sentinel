@@ -9,7 +9,7 @@ Implements US grocery coupon stacking rules:
 """
 
 from typing import List, Tuple
-from ..models import Coupon, CouponType, DiscountType, StoreItem, AppliedCoupon
+from models import Coupon, CouponType, DiscountType, StoreItem, AppliedCoupon
 
 
 def matches_item(coupon: Coupon, item: StoreItem) -> bool:
