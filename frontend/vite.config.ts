@@ -16,5 +16,9 @@ export default defineConfig({
         changeOrigin: true,
       }
     }
+  },
+  preview: {
+    port: 3000,
+    host: true, // Listen on all addresses
   }
 })
