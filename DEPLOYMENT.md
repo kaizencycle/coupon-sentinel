@@ -27,7 +27,10 @@ Deploy Coupon Sentinel to production in minutes.
    - Root Directory: *(leave empty - use repo root)*
    - Runtime: Python 3
    - Build Command: `pip install -r backend/requirements.txt`
-   - Start Command: `uvicorn backend.app:app --host 0.0.0.0 --port $PORT`
+   - Start Command: `PYTHONPATH=. uvicorn backend.app:app --host 0.0.0.0 --port $PORT`
+   
+   **Alternative:** You can also use the provided start script:
+   - Start Command: `./start.sh`
 
 4. **Deploy!** Your API will be at: `https://coupon-sentinel-api.onrender.com`
 
@@ -85,7 +88,7 @@ docker-compose up --build
 2. **Create new project from GitHub**
 
 3. **Add two services:**
-   - **Backend:** Use repo root, start command: `uvicorn backend.app:app --host 0.0.0.0 --port $PORT`
+   - **Backend:** Use repo root, start command: `PYTHONPATH=. uvicorn backend.app:app --host 0.0.0.0 --port $PORT`
    - **Frontend:** Set root to `frontend`, Railway auto-detects Vite
 
 4. **Add environment variable** to frontend:
@@ -175,7 +178,7 @@ render logs -s coupon-sentinel-api
 - Check Python version (needs 3.10+)
 - Verify `requirements.txt` includes all dependencies
 - Check build logs for errors
-- **ModuleNotFoundError: No module named 'backend'** - Make sure you're using the start command `uvicorn backend.app:app --host 0.0.0.0 --port $PORT` from the repo root (not from the `backend/` subdirectory)
+- **ModuleNotFoundError: No module named 'backend'** - Use the start command `PYTHONPATH=. uvicorn backend.app:app --host 0.0.0.0 --port $PORT` to ensure Python can find the backend module. Alternatively, ensure Render's Root Directory is set to the repo root (leave empty or set to `/`).
 
 ### Frontend can't reach backend
 
