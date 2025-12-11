@@ -21,10 +21,10 @@ fi
 
 # Try using WSGI entry point first (standard)
 if [ -f "wsgi.py" ]; then
-    exec uvicorn wsgi:app --host 0.0.0.0 --port ${PORT:-8000}
+    exec python3 -m uvicorn wsgi:app --host 0.0.0.0 --port ${PORT:-8000}
 elif [ -f "backend/run.py" ]; then
     exec python3 backend/run.py
 else
     # Fallback to direct uvicorn
-    exec uvicorn backend.app:app --host 0.0.0.0 --port ${PORT:-8000}
+    exec python3 -m uvicorn backend.app:app --host 0.0.0.0 --port ${PORT:-8000}
 fi
