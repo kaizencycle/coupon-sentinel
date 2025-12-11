@@ -27,10 +27,10 @@ Deploy Coupon Sentinel to production in minutes.
    - Root Directory: *(leave empty - use repo root)*
    - Runtime: Python 3
    - Build Command: `pip install -r backend/requirements.txt`
-   - Start Command: `PYTHONPATH=. uvicorn backend.app:app --host 0.0.0.0 --port $PORT`
-   
-   **Alternative:** You can also use the provided start script:
-   - Start Command: `./start.sh`
+   - Start Command (choose one):
+     - **Option 1 (Recommended):** `python3 backend/run.py`
+     - **Option 2:** `./start.sh`
+     - **Option 3:** `PYTHONPATH=. uvicorn backend.app:app --host 0.0.0.0 --port $PORT`
 
 4. **Deploy!** Your API will be at: `https://coupon-sentinel-api.onrender.com`
 
@@ -178,7 +178,11 @@ render logs -s coupon-sentinel-api
 - Check Python version (needs 3.10+)
 - Verify `requirements.txt` includes all dependencies
 - Check build logs for errors
-- **ModuleNotFoundError: No module named 'backend'** - Use the start command `PYTHONPATH=. uvicorn backend.app:app --host 0.0.0.0 --port $PORT` to ensure Python can find the backend module. Alternatively, ensure Render's Root Directory is set to the repo root (leave empty or set to `/`).
+- **ModuleNotFoundError: No module named 'backend'** - This usually means Python can't find the backend module. Try these solutions:
+  1. **Use the Python entry point (recommended):** Change start command to `python3 backend/run.py`
+  2. **Use the start script:** Change start command to `./start.sh` (make sure it's executable)
+  3. **Check Root Directory:** Ensure Render's Root Directory is set to the repo root (leave empty or set to `/`)
+  4. **Manual PYTHONPATH:** Use start command `PYTHONPATH=. uvicorn backend.app:app --host 0.0.0.0 --port $PORT`
 
 ### Frontend can't reach backend
 
