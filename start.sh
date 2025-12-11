@@ -19,8 +19,10 @@ if [ ! -d "backend" ]; then
     exit 1
 fi
 
-# Try using Python entry point first (more reliable)
-if [ -f "backend/run.py" ]; then
+# Try using WSGI entry point first (standard)
+if [ -f "wsgi.py" ]; then
+    exec uvicorn wsgi:app --host 0.0.0.0 --port ${PORT:-8000}
+elif [ -f "backend/run.py" ]; then
     exec python3 backend/run.py
 else
     # Fallback to direct uvicorn
