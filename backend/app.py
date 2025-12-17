@@ -11,9 +11,9 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Optional
 
-from backend.models import OptimizeRequest, OptimizeResponse, ShoppingItem
-from backend.engines import optimize_shopping_list
-from backend.providers import get_mock_store_items, get_mock_coupons, SUPPORTED_STORES
+from .models import OptimizeRequest, OptimizeResponse, ShoppingItem
+from .engines import optimize_shopping_list
+from .providers import get_mock_store_items, get_mock_coupons, SUPPORTED_STORES
 
 
 # ============================================================================
