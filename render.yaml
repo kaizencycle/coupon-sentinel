@@ -6,7 +6,7 @@ services:
     plan: free
     rootDir: .
     buildCommand: pip install -r backend/requirements.txt
-    startCommand: ./start.sh
+    startCommand: python -m uvicorn wsgi:app --host 0.0.0.0 --port ${PORT:-8000}
     envVars:
       - key: PORT
         value: 8000
@@ -14,6 +14,8 @@ services:
         value: production
       - key: LOG_LEVEL
         value: INFO
+      - key: PYTHONPATH
+        value: /opt/render/project/src
     healthCheckPath: /health
     autoDeploy: true
 
