@@ -20,7 +20,7 @@ from .models import (
     StorePlanWithDealContext,
 )
 from .engines import optimize_shopping_list
-from .engines.deal_context_engine import attach_deal_context, build_anomalies_by_product_id
+from .engines.deal_context_engine import attach_deal_context, build_market_observation_index
 from .engines.deal_engine import enrich_deal_event, enrich_price_observation
 from .engines.price_memory_engine import (
     build_price_anomaly,
@@ -120,8 +120,8 @@ async def optimize_with_deal_context(request: OptimizeRequest):
     coupons = get_mock_coupons()
     result = optimize_shopping_list(request, store_items, coupons)
 
-    # Single pass: group observations and build anomaly lookup once per request.
-    anomalies_by_product_id = build_anomalies_by_product_id(get_mock_price_observations())
+    # Single pass: index observations by market once per request (not per item).
+    market_observations = build_market_observation_index(get_mock_price_observations())
 
     plans_with_context: List[StorePlanWithDealContext] = []
     for plan in result.plans:
@@ -129,7 +129,7 @@ async def optimize_with_deal_context(request: OptimizeRequest):
         for item in plan.items:
             deal_context = attach_deal_context(
                 item,
-                anomalies_by_product_id,
+                market_observations,
                 zip_code=request.zip_code,
             )
             items_with_context.append(

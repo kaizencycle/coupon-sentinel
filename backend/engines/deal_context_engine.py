@@ -9,63 +9,67 @@ from typing import Dict, List, Optional
 
 from backend.deal_models import PriceObservation
 from backend.engines.price_memory_engine import (
+    GroupKey,
     build_price_anomaly,
     group_observations_by_market,
 )
 from backend.models import OptimizedItem
-from backend.price_memory_models import OptimizedItemDealContext, PriceAnomaly
+from backend.price_memory_models import OptimizedItemDealContext
 
 
-def build_anomalies_by_product_id(
+def build_market_observation_index(
     observations: List[PriceObservation],
-) -> Dict[str, PriceAnomaly]:
+) -> Dict[GroupKey, List[PriceObservation]]:
     """
-    Precompute anomalies once per request — single group_observations_by_market pass.
+    Index observations by (zip_code, retailer, product_id) in a single pass.
 
-    Keyed by product_id. When multiple market groups share a product_id, the last
-    group processed wins; attach_deal_context also matches retailer + zip_code.
+    Each market group is keyed independently so attach_deal_context can resolve
+    the optimizer item's store and request ZIP without cross-market overwrite.
     """
-    grouped = group_observations_by_market(observations)
-    anomalies: Dict[str, PriceAnomaly] = {}
+    return group_observations_by_market(observations)
 
-    for group_key, group_observations in grouped.items():
-        gz, gr, gp = group_key
-        current_price = max(o.observed_price for o in group_observations)
-        anomaly = build_price_anomaly(
-            anomaly_id=f"anomaly-{gr}-{gz or 'no-zip'}-{gp}",
-            group_key=group_key,
-            current_price=current_price,
-            observations=group_observations,
-        )
-        anomalies[gp] = anomaly
 
-    return anomalies
+def _market_lookup_key(
+    zip_code: str,
+    retailer: str,
+    product_id: str,
+) -> GroupKey:
+    return (zip_code, retailer.lower(), product_id)
 
 
 def attach_deal_context(
     item: OptimizedItem,
-    anomalies_by_product_id: Dict[str, PriceAnomaly],
+    market_observations: Dict[GroupKey, List[PriceObservation]],
     *,
     zip_code: str,
 ) -> Optional[OptimizedItemDealContext]:
     """
     Lookup deal context for an optimized item via bridged product_id.
 
-    Returns None (not NORMAL) when product_id is missing, no anomaly exists,
-    or the anomaly's market does not match the item's store and request ZIP.
+    Uses the item's chosen_product.price as current_price — not the max/latest
+    observation in the market group. Returns None (not NORMAL) when product_id
+    is missing or no observations exist for the item's market.
     """
     product_id = item.chosen_product.product_id
     if not product_id:
         return None
 
-    anomaly = anomalies_by_product_id.get(product_id)
-    if anomaly is None:
+    group_key = _market_lookup_key(
+        zip_code,
+        item.chosen_product.store_name,
+        product_id,
+    )
+    observations = market_observations.get(group_key)
+    if not observations:
         return None
 
-    if (anomaly.zip_code or "") != zip_code:
-        return None
-    if anomaly.retailer.lower() != item.chosen_product.store_name.lower():
-        return None
+    current_price = item.chosen_product.price
+    anomaly = build_price_anomaly(
+        anomaly_id=f"anomaly-{group_key[0] or 'no-zip'}-{group_key[1]}-{product_id}",
+        group_key=group_key,
+        current_price=current_price,
+        observations=observations,
+    )
 
     return OptimizedItemDealContext(
         product_id=product_id,
