@@ -60,6 +60,16 @@ class TestMockFixtures:
 
     def test_tide_stack_deal_traceable_to_observations(self):
         tide = next(d for d in get_mock_deal_events() if d.id == "deal-tide-stack")
-        assert len(tide.observation_ids) >= 2
+        assert len(tide.observation_ids) >= 3
         assert tide.effective_price == 6.99
+        assert tide.coupon_value == 3.00
+        assert tide.rebate_value == 2.00
         assert tide.deal_type == DealType.STACK
+
+    def test_chips_rebate_stack_discounts_trace_to_observations(self):
+        chips = next(d for d in get_mock_deal_events() if d.id == "deal-chips-rebate-stack")
+        assert chips.coupon_value == 1.00
+        assert chips.rebate_value == 1.00
+        assert chips.effective_price == 2.99
+        assert "obs-chips-coupon-feed" in chips.observation_ids
+        assert "obs-chips-rebate-feed" in chips.observation_ids

@@ -72,6 +72,28 @@ def calculate_savings_percentage(
     return round(max(0.0, pct), 1)
 
 
+def extract_documented_discounts(
+    observations: List[PriceObservation],
+) -> tuple[float, float, float]:
+    """Sum discount amounts documented on linked observations — provenance source of truth."""
+    coupon = sum(o.documented_coupon_value or 0.0 for o in observations)
+    rebate = sum(o.documented_rebate_value or 0.0 for o in observations)
+    loyalty = sum(o.documented_loyalty_savings or 0.0 for o in observations)
+    return coupon, rebate, loyalty
+
+
+def derive_prices_from_observations(
+    observations: List[PriceObservation],
+) -> tuple[float, Optional[float]]:
+    """Derive current and regular price from price observations."""
+    current_price = max(o.observed_price for o in observations)
+    regular_candidates = [
+        o.regular_price for o in observations if o.regular_price is not None
+    ]
+    regular_price = max(regular_candidates) if regular_candidates else None
+    return current_price, regular_price
+
+
 def aggregate_observation_confidence(
     observations: List[PriceObservation],
     *,
@@ -92,8 +114,7 @@ def aggregate_observation_confidence(
         return 0.0
 
     reference = now or datetime.now(observations[0].observed_at.tzinfo)
-    weighted_sum = 0.0
-    weight_total = 0.0
+    combined_scores: List[float] = []
     evidence_types: Set[EvidenceType] = set()
     has_receipt = False
 
@@ -104,13 +125,13 @@ def aggregate_observation_confidence(
         type_weight = _EVIDENCE_WEIGHTS.get(obs.evidence_type, 0.5)
         combined = obs.confidence * type_weight * staleness
 
-        weighted_sum += combined
-        weight_total += type_weight
+        combined_scores.append(combined)
         evidence_types.add(obs.evidence_type)
         if obs.evidence_type == EvidenceType.RECEIPT:
             has_receipt = True
 
-    base = weighted_sum / weight_total if weight_total > 0 else 0.0
+    # Mean of penalized scores — do not normalize away evidence-type reliability.
+    base = sum(combined_scores) / len(combined_scores)
 
     # Small boost for evidence-type diversity (not independence)
     diversity_boost = min(0.08, max(0.0, (len(evidence_types) - 1) * 0.04))
@@ -190,11 +211,6 @@ def build_deal_from_observations(
     deal_type: DealType,
     observations: List[PriceObservation],
     *,
-    current_price: float,
-    regular_price: Optional[float] = None,
-    coupon_value: float = 0.0,
-    rebate_value: float = 0.0,
-    loyalty_savings: float = 0.0,
     store_id: Optional[str] = None,
     zip_code: Optional[str] = None,
     starts_at: Optional[datetime] = None,
@@ -203,13 +219,20 @@ def build_deal_from_observations(
 ) -> DealEvent:
     """Build a DealEvent from observations with deterministic pricing.
 
-    Requires at least one observation — deals must trace to evidence.
+    Requires at least one observation. Current price, regular price, and all
+    discount amounts are derived from observation fields — never caller-supplied
+    without provenance.
     """
     if not observations:
         raise ValueError(
             "build_deal_from_observations requires at least one PriceObservation; "
             "deals must trace to evidence."
         )
+
+    current_price, regular_price = derive_prices_from_observations(observations)
+    coupon_value, rebate_value, loyalty_savings = extract_documented_discounts(
+        observations
+    )
 
     effective = calculate_effective_price(
         current_price,

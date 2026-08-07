@@ -109,6 +109,21 @@ class PriceObservation(BaseModel):
     source: Optional[str] = None
     confidence: float = Field(..., ge=0.0, le=1.0)
     in_stock: Optional[bool] = None
+    documented_coupon_value: Optional[float] = Field(
+        None,
+        ge=0.0,
+        description="Coupon discount amount evidenced by this observation (e.g. coupon feed)",
+    )
+    documented_rebate_value: Optional[float] = Field(
+        None,
+        ge=0.0,
+        description="Rebate value evidenced by this observation (e.g. rebate feed)",
+    )
+    documented_loyalty_savings: Optional[float] = Field(
+        None,
+        ge=0.0,
+        description="Loyalty savings amount evidenced by this observation",
+    )
 
     @field_validator("observed_price")
     @classmethod

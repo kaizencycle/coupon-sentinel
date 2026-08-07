@@ -196,6 +196,9 @@ export interface PriceObservation {
   source?: string;
   confidence: number;
   in_stock?: boolean;
+  documented_coupon_value?: number;
+  documented_rebate_value?: number;
+  documented_loyalty_savings?: number;
 }
 
 export interface PriceObservationDetail extends PriceObservation {
