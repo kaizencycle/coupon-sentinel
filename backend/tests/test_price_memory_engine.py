@@ -148,4 +148,46 @@ class TestGroupObservations:
         ]
         groups = group_observations_by_market(observations)
         assert len(groups) == 2
-        assert len(groups[("11566", "Target", "prod-test")]) == 1
+        assert len(groups[("11566", "target", "prod-test")]) == 1
+
+    def test_mixed_retailer_casing_groups_together(self):
+        base = datetime(2026, 8, 7, 12, 0, 0, tzinfo=timezone.utc)
+        observations = [
+            PriceObservation(
+                id="lower",
+                product_id="prod-test",
+                retailer="target",
+                zip_code="11566",
+                observed_price=10.0,
+                observed_at=base,
+                evidence_type=EvidenceType.RETAILER_PUBLIC,
+                confidence=0.8,
+            ),
+            PriceObservation(
+                id="title",
+                product_id="prod-test",
+                retailer="Target",
+                zip_code="11566",
+                observed_price=12.0,
+                observed_at=base,
+                evidence_type=EvidenceType.COMMUNITY_REPORT,
+                confidence=0.6,
+            ),
+            PriceObservation(
+                id="upper",
+                product_id="prod-test",
+                retailer="TARGET",
+                zip_code="11566",
+                observed_price=11.0,
+                observed_at=base,
+                evidence_type=EvidenceType.WEEKLY_AD,
+                confidence=0.7,
+            ),
+        ]
+        groups = group_observations_by_market(observations)
+        assert len(groups) == 1
+        assert len(groups[("11566", "target", "prod-test")]) == 3
+        baseline = compute_local_baseline(groups[("11566", "target", "prod-test")])
+        assert baseline is not None
+        assert baseline.sample_size == 3
+        assert baseline.median_price == 11.0

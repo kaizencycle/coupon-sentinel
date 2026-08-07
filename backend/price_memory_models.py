@@ -14,7 +14,8 @@ from typing import List, Optional, Tuple
 
 from pydantic import BaseModel, Field
 
-# Canonical local-market unit: (zip_code, retailer, product_id).
+# Canonical local-market unit: (zip_code, retailer_lower, product_id).
+# Retailer in the key is normalized lowercase for grouping; API models use display casing.
 GroupKey = Tuple[str, str, str]
 
 
