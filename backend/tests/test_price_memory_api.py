@@ -28,6 +28,14 @@ class TestPriceMemoryAPI:
         )
         assert response.status_code == 404
 
+    def test_get_price_memory_empty_group_404(self):
+        response = client.get(
+            "/api/price-memory/prod-tide-pods",
+            params={"zip_code": "99999", "retailer": "Target"},
+        )
+        assert response.status_code == 404
+        assert "No price observations" in response.json()["detail"]
+
     def test_list_anomalies(self):
         response = client.get("/api/anomalies")
         assert response.status_code == 200

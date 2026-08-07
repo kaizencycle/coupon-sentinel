@@ -15,9 +15,10 @@ from .models import OptimizeRequest, OptimizeResponse, ShoppingItem
 from .engines import optimize_shopping_list
 from .engines.deal_engine import enrich_deal_event, enrich_price_observation
 from .engines.price_memory_engine import (
-    build_all_price_anomalies,
+    build_price_anomaly,
     compute_local_baseline,
     enrich_price_anomaly,
+    group_observations_by_market,
 )
 from .providers import (
     get_mock_store_items,
@@ -294,36 +295,47 @@ async def list_price_observations(
 
 # ============================================================================
 # Local Price Memory Endpoints (PR-2 — read-only, mock fixtures)
+#
+# Additive read-only routes using engines/price_memory_engine.py.
+# Same is_mock_data / MOCK_DATA_NOTICE contract as PR-1 deal endpoints.
+# Filter observations only for single-product lookup; list_anomalies computes
+# every market group first then filters (same pattern as list_deals).
 # ============================================================================
+
+
+def _price_memory_group_key(zip_code: str, retailer: str, product_id: str) -> tuple:
+    """GroupKey aligned with engine retailer normalization."""
+    return (zip_code, retailer.lower(), product_id)
+
 
 @app.get("/api/price-memory/{product_id}")
 async def get_price_memory(
     product_id: str,
-    zip_code: str = Query(..., description="Zip code for local market group"),
-    retailer: str = Query(..., description="Retailer for local market group"),
+    zip_code: str = Query(..., description="ZIP code for the local market"),
+    retailer: str = Query(..., description="Retailer name"),
 ):
     """
-    Return all-time median baseline for a product in a local market.
+    Return the local price baseline for one product at one retailer/ZIP.
 
-    Baseline is median observed_price with no decay — independent of confidence weighting.
+    Groups matching observations via group_observations_by_market, then computes
+    the all-time median baseline for that single group. 404 if no observations
+    exist — an empty baseline is not a valid response.
     """
     observations = get_mock_price_observations()
-    filtered = [
-        o
-        for o in observations
-        if o.product_id == product_id
-        and (o.zip_code or "") == zip_code
-        and o.retailer.lower() == retailer.lower()
-    ]
+    grouped = group_observations_by_market(observations)
+    group_key = _price_memory_group_key(zip_code, retailer, product_id)
 
-    if not filtered:
+    group_observations = grouped.get(group_key, [])
+    if not group_observations:
         raise HTTPException(
             status_code=404,
-            detail=f"No observations for product {product_id} in {retailer} / {zip_code}",
+            detail=(
+                f"No price observations for product={product_id} "
+                f"retailer={retailer} zip_code={zip_code}"
+            ),
         )
 
-    group_key = (zip_code, retailer.lower(), product_id)
-    baseline = compute_local_baseline(group_key, filtered)
+    baseline = compute_local_baseline(group_key, group_observations)
 
     return {
         "baseline": baseline.model_dump(mode="json"),
@@ -336,23 +348,44 @@ async def get_price_memory(
 async def list_anomalies(
     zip_code: Optional[str] = Query(None, description="Filter by zip code"),
     retailer: Optional[str] = Query(None, description="Filter by retailer"),
-    signal: Optional[str] = Query(None, description="Filter by recommendation signal"),
+    signal: Optional[str] = Query(
+        None,
+        description=(
+            "Filter by signal: strong_deal, good_deal, normal, "
+            "above_baseline, insufficient_data"
+        ),
+    ),
 ):
-    """List price anomalies and BUY/WAIT/NORMAL signals across mock fixtures."""
+    """
+    List price anomalies across all local markets in the mock fixture set.
+
+    Computes one PriceAnomaly per (zip_code, retailer, product_id) group first,
+    then filters — do not pre-filter observations before grouping (that would
+    shrink sample sizes and skew MIN_BASELINE_SAMPLES gating).
+    """
     products = get_product_index()
     observations = get_mock_price_observations()
-    anomalies = build_all_price_anomalies(observations)
+    grouped = group_observations_by_market(observations)
+
+    anomalies = []
+    for group_key, group_observations in grouped.items():
+        gz, gr, gp = group_key
+        current_price = max(o.observed_price for o in group_observations)
+        anomalies.append(
+            build_price_anomaly(
+                anomaly_id=f"anomaly-{gr}-{gz or 'no-zip'}-{gp}",
+                group_key=group_key,
+                current_price=current_price,
+                observations=group_observations,
+            )
+        )
 
     if zip_code:
-        anomalies = [
-            a for a in anomalies if (a.zip_code or "") == zip_code
-        ]
+        anomalies = [a for a in anomalies if (a.zip_code or "") == zip_code]
     if retailer:
         anomalies = [a for a in anomalies if a.retailer.lower() == retailer.lower()]
     if signal:
-        anomalies = [
-            a for a in anomalies if a.signal.value.lower() == signal.lower()
-        ]
+        anomalies = [a for a in anomalies if a.signal.value == signal.lower()]
 
     enriched = []
     for anomaly in anomalies:
