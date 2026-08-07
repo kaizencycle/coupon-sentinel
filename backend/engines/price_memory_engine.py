@@ -34,9 +34,14 @@ _GOOD_DEAL_THRESHOLD = 15.0
 _NORMAL_BAND = 15.0
 
 
+def _normalize_retailer(retailer: str) -> str:
+    """Canonical retailer for grouping — matches API case-insensitive filters."""
+    return retailer.lower()
+
+
 def _market_key(observation: PriceObservation) -> GroupKey:
     zip_code = observation.zip_code or ""
-    return (zip_code, observation.retailer, observation.product_id)
+    return (zip_code, _normalize_retailer(observation.retailer), observation.product_id)
 
 
 def group_observations_by_market(
@@ -63,13 +68,13 @@ def compute_local_baseline(
 
     prices = [o.observed_price for o in observations]
     observed_times = [o.observed_at for o in observations]
-    first = observations[0]
+    canonical = max(observations, key=lambda o: o.observed_at)
 
     return LocalPriceBaseline(
-        product_id=first.product_id,
-        zip_code=first.zip_code or "",
-        retailer=first.retailer,
-        store_id=first.store_id,
+        product_id=canonical.product_id,
+        zip_code=canonical.zip_code or "",
+        retailer=canonical.retailer,
+        store_id=canonical.store_id,
         median_price=median(prices),
         sample_size=len(observations),
         min_observed=min(prices),
@@ -129,11 +134,12 @@ def build_price_anomaly(
         retailer = ""
         product_id = ""
     else:
-        zip_code = observations[0].zip_code or ""
-        retailer = observations[0].retailer
-        product_id = observations[0].product_id
+        canonical = max(observations, key=lambda o: o.observed_at)
+        zip_code = canonical.zip_code or ""
+        retailer = canonical.retailer
+        product_id = canonical.product_id
         if store_id is None:
-            store_id = observations[0].store_id
+            store_id = canonical.store_id
 
     baseline = compute_local_baseline(observations)
     evidence_summary = build_evidence_summary(observations) if observations else [
