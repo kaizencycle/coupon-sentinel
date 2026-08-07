@@ -14,6 +14,11 @@ from typing import List, Optional
 from .models import OptimizeRequest, OptimizeResponse, ShoppingItem
 from .engines import optimize_shopping_list
 from .engines.deal_engine import enrich_deal_event, enrich_price_observation
+from .engines.price_memory_engine import (
+    build_all_price_anomalies,
+    compute_local_baseline,
+    enrich_price_anomaly,
+)
 from .providers import (
     get_mock_store_items,
     get_mock_coupons,
@@ -281,6 +286,86 @@ async def list_price_observations(
 
     return {
         "observations": enriched,
+        "count": len(enriched),
+        "is_mock_data": True,
+        "notice": MOCK_DATA_NOTICE,
+    }
+
+
+# ============================================================================
+# Local Price Memory Endpoints (PR-2 — read-only, mock fixtures)
+# ============================================================================
+
+@app.get("/api/price-memory/{product_id}")
+async def get_price_memory(
+    product_id: str,
+    zip_code: str = Query(..., description="Zip code for local market group"),
+    retailer: str = Query(..., description="Retailer for local market group"),
+):
+    """
+    Return all-time median baseline for a product in a local market.
+
+    Baseline is median observed_price with no decay — independent of confidence weighting.
+    """
+    observations = get_mock_price_observations()
+    filtered = [
+        o
+        for o in observations
+        if o.product_id == product_id
+        and (o.zip_code or "") == zip_code
+        and o.retailer.lower() == retailer.lower()
+    ]
+
+    if not filtered:
+        raise HTTPException(
+            status_code=404,
+            detail=f"No observations for product {product_id} in {retailer} / {zip_code}",
+        )
+
+    baseline = compute_local_baseline(filtered)
+    if baseline is None:
+        raise HTTPException(status_code=404, detail="Unable to compute baseline")
+
+    return {
+        "baseline": baseline.model_dump(mode="json"),
+        "is_mock_data": True,
+        "notice": MOCK_DATA_NOTICE,
+    }
+
+
+@app.get("/api/anomalies")
+async def list_anomalies(
+    zip_code: Optional[str] = Query(None, description="Filter by zip code"),
+    retailer: Optional[str] = Query(None, description="Filter by retailer"),
+    signal: Optional[str] = Query(None, description="Filter by recommendation signal"),
+):
+    """List price anomalies and BUY/WAIT/NORMAL signals across mock fixtures."""
+    products = get_product_index()
+    observations = get_mock_price_observations()
+    anomalies = build_all_price_anomalies(observations)
+
+    if zip_code:
+        anomalies = [a for a in anomalies if a.zip_code == zip_code]
+    if retailer:
+        anomalies = [a for a in anomalies if a.retailer.lower() == retailer.lower()]
+    if signal:
+        anomalies = [
+            a for a in anomalies if a.signal.value.lower() == signal.lower()
+        ]
+
+    enriched = []
+    for anomaly in anomalies:
+        product = products.get(anomaly.product_id)
+        enriched.append(
+            enrich_price_anomaly(
+                anomaly,
+                product_name=product.name if product else None,
+                product_brand=product.brand if product else None,
+            ).model_dump(mode="json")
+        )
+
+    return {
+        "anomalies": enriched,
         "count": len(enriched),
         "is_mock_data": True,
         "notice": MOCK_DATA_NOTICE,
