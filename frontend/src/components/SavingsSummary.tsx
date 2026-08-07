@@ -16,7 +16,7 @@ export function SavingsSummary({ result }: Props) {
     <div className={`savings-summary ${savingsClass}`}>
       <div className="summary-card">
         <div className="summary-header">
-          <h2>💰 Your Savings</h2>
+          <h2>Your Savings</h2>
         </div>
 
         <div className="summary-stats">
@@ -53,7 +53,7 @@ export function SavingsSummary({ result }: Props) {
 
       {result.rebate_opportunities.length > 0 && (
         <div className="rebates-card">
-          <h3>📱 Bonus Rebates Available</h3>
+          <h3>Bonus rebates available</h3>
           <ul className="rebates-list">
             {result.rebate_opportunities.map((rebate, idx) => (
               <li key={idx} className="rebate-item">
