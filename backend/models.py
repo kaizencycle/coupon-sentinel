@@ -70,7 +70,8 @@ class StoreItem(BaseModel):
     in_stock: bool = True
     product_id: Optional[str] = Field(
         None,
-        description="Bridged deal-intelligence ProductIdentity id (PR-3). Null when unmapped.",
+        exclude=True,
+        description="Bridged deal-intelligence ProductIdentity id (PR-3). Internal only — not serialized on /api/optimize.",
     )
 
     @property

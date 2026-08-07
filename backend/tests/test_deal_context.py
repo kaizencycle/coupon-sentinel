@@ -56,6 +56,14 @@ class TestOptimizeRegression:
         assert response.status_code == 200
         assert "deal_context" not in response.text
 
+    def test_optimize_response_excludes_internal_product_id(self):
+        """Legacy /api/optimize must not emit product_id on chosen_product (Codex P2)."""
+        response = client.post("/api/optimize", json=_WALMART_REQUEST)
+        assert response.status_code == 200
+        for plan in response.json()["plans"]:
+            for item in plan["items"]:
+                assert "product_id" not in item["chosen_product"]
+
 
 class TestOptimizeWithDealContext:
     def test_bridged_items_receive_deal_context(self):
@@ -92,7 +100,7 @@ class TestOptimizeWithDealContext:
 
         assert len(chicken_items) == 1
         assert chicken_items[0]["deal_context"] is None
-        assert chicken_items[0]["chosen_product"].get("product_id") is None
+        assert "product_id" not in chicken_items[0]["chosen_product"]
 
     def test_anomaly_lookup_built_once_per_request(self):
         """Endpoint handler indexes market observations once (not per item)."""
