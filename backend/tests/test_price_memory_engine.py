@@ -6,17 +6,16 @@ import pytest
 
 from backend.deal_models import EvidenceType, PriceObservation
 from backend.engines.price_memory_engine import (
-    _GOOD_DEAL_THRESHOLD,
-    _MIN_SAMPLES_DEFAULT,
-    _NORMAL_BAND,
-    _STRONG_DEAL_THRESHOLD,
+    _GOOD_DEAL_THRESHOLD_PCT,
+    _NORMAL_BAND_PCT,
+    _STRONG_DEAL_THRESHOLD_PCT,
     build_price_anomaly,
     compute_deviation_pct,
     compute_local_baseline,
     derive_recommendation_signal,
     group_observations_by_market,
 )
-from backend.price_memory_models import RecommendationSignal
+from backend.price_memory_models import MIN_BASELINE_SAMPLES, RecommendationSignal
 
 
 def _obs(
@@ -40,6 +39,10 @@ def _obs(
     )
 
 
+def _key() -> tuple[str, str, str]:
+    return ("11566", "target", "prod-test")
+
+
 class TestComputeLocalBaseline:
     def test_median_not_mean_outlier_robust(self):
         observations = [
@@ -49,44 +52,43 @@ class TestComputeLocalBaseline:
             _obs("d", 10.0),
             _obs("e", 100.0),
         ]
-        baseline = compute_local_baseline(observations)
-        assert baseline is not None
+        baseline = compute_local_baseline(_key(), observations)
         assert baseline.median_price == 10.0
         assert baseline.sample_size == 5
         assert baseline.min_observed == 10.0
         assert baseline.max_observed == 100.0
 
-    def test_empty_returns_none(self):
-        assert compute_local_baseline([]) is None
+    def test_empty_raises(self):
+        with pytest.raises(ValueError, match="at least one observation"):
+            compute_local_baseline(_key(), [])
 
     def test_all_time_no_decay_old_observation_counts(self):
         old = _obs("old", 20.0, days_offset=3)
         new = _obs("new", 10.0)
-        baseline = compute_local_baseline([old, new])
-        assert baseline is not None
+        baseline = compute_local_baseline(_key(), [old, new])
         assert baseline.median_price == 15.0
 
 
 class TestDeriveRecommendationSignal:
     def test_insufficient_data_below_min_samples(self):
         assert (
-            derive_recommendation_signal(50.0, sample_size=2, min_samples=3)
+            derive_recommendation_signal(50.0, sample_size=2, min_samples=MIN_BASELINE_SAMPLES)
             == RecommendationSignal.INSUFFICIENT_DATA
         )
 
     def test_strong_deal_at_threshold(self):
         assert (
-            derive_recommendation_signal(_STRONG_DEAL_THRESHOLD, sample_size=5)
+            derive_recommendation_signal(_STRONG_DEAL_THRESHOLD_PCT, sample_size=5)
             == RecommendationSignal.STRONG_DEAL
         )
 
     def test_good_deal_boundaries(self):
         assert (
-            derive_recommendation_signal(_GOOD_DEAL_THRESHOLD, sample_size=5)
+            derive_recommendation_signal(_GOOD_DEAL_THRESHOLD_PCT, sample_size=5)
             == RecommendationSignal.GOOD_DEAL
         )
         assert (
-            derive_recommendation_signal(_GOOD_DEAL_THRESHOLD - 0.1, sample_size=5)
+            derive_recommendation_signal(_GOOD_DEAL_THRESHOLD_PCT - 0.1, sample_size=5)
             == RecommendationSignal.NORMAL
         )
 
@@ -96,38 +98,32 @@ class TestDeriveRecommendationSignal:
 
     def test_above_baseline(self):
         assert (
-            derive_recommendation_signal(-_NORMAL_BAND, sample_size=5)
+            derive_recommendation_signal(-_NORMAL_BAND_PCT - 0.1, sample_size=5)
             == RecommendationSignal.ABOVE_BASELINE
         )
 
 
 class TestBuildPriceAnomaly:
-    def test_empty_observations_returns_insufficient_data_no_exception(self):
+    def test_empty_observations_raises(self):
         when = datetime(2026, 8, 7, 12, 0, 0, tzinfo=timezone.utc)
-        anomaly = build_price_anomaly(
-            [],
-            current_price=9.99,
-            observed_at=when,
-            observation_ids=[],
-        )
-        assert anomaly.signal == RecommendationSignal.INSUFFICIENT_DATA
-        assert anomaly.baseline is None
+        with pytest.raises(ValueError, match="at least one observation"):
+            build_price_anomaly("anomaly-1", _key(), 9.99, [], now=when)
 
     def test_two_samples_insufficient_data(self):
         observations = [_obs("a", 5.0), _obs("b", 6.0)]
         anomaly = build_price_anomaly(
+            "anomaly-thin",
+            _key(),
+            4.0,
             observations,
-            current_price=4.0,
-            observed_at=observations[-1].observed_at,
-            observation_ids=[o.id for o in observations],
         )
         assert anomaly.signal == RecommendationSignal.INSUFFICIENT_DATA
-        assert anomaly.deviation_pct is None
+        assert anomaly.baseline.sample_size == 2
+        assert anomaly.deviation_pct is not None
 
     def test_compute_deviation_pct(self):
         observations = [_obs("a", 10.0), _obs("b", 10.0), _obs("c", 10.0)]
-        baseline = compute_local_baseline(observations)
-        assert baseline is not None
+        baseline = compute_local_baseline(_key(), observations)
         assert compute_deviation_pct(7.0, baseline) == 30.0
 
 
@@ -187,7 +183,9 @@ class TestGroupObservations:
         groups = group_observations_by_market(observations)
         assert len(groups) == 1
         assert len(groups[("11566", "target", "prod-test")]) == 3
-        baseline = compute_local_baseline(groups[("11566", "target", "prod-test")])
-        assert baseline is not None
+        baseline = compute_local_baseline(
+            ("11566", "target", "prod-test"),
+            groups[("11566", "target", "prod-test")],
+        )
         assert baseline.sample_size == 3
         assert baseline.median_price == 11.0

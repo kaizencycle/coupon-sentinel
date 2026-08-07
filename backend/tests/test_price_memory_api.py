@@ -37,10 +37,10 @@ class TestPriceMemoryAPI:
         assert "anomalies" in data
 
     def test_filter_anomalies_by_signal(self):
-        response = client.get("/api/anomalies", params={"signal": "INSUFFICIENT_DATA"})
+        response = client.get("/api/anomalies", params={"signal": "insufficient_data"})
         assert response.status_code == 200
         for anomaly in response.json()["anomalies"]:
-            assert anomaly["signal"] == "INSUFFICIENT_DATA"
+            assert anomaly["signal"] == "insufficient_data"
 
     def test_milk_normal_signal_fixture(self):
         response = client.get(
@@ -48,7 +48,7 @@ class TestPriceMemoryAPI:
             params={
                 "zip_code": "11566",
                 "retailer": "Walmart",
-                "signal": "NORMAL",
+                "signal": "normal",
             },
         )
         assert response.status_code == 200
@@ -58,7 +58,7 @@ class TestPriceMemoryAPI:
             if a["product_id"] == "prod-gv-milk"
         ]
         assert len(milk) >= 1
-        assert milk[0]["signal"] == "NORMAL"
+        assert milk[0]["signal"] == "normal"
 
     def test_pr1_optimize_still_works(self):
         response = client.post(

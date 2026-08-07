@@ -322,9 +322,8 @@ async def get_price_memory(
             detail=f"No observations for product {product_id} in {retailer} / {zip_code}",
         )
 
-    baseline = compute_local_baseline(filtered)
-    if baseline is None:
-        raise HTTPException(status_code=404, detail="Unable to compute baseline")
+    group_key = (zip_code, retailer.lower(), product_id)
+    baseline = compute_local_baseline(group_key, filtered)
 
     return {
         "baseline": baseline.model_dump(mode="json"),
@@ -345,7 +344,9 @@ async def list_anomalies(
     anomalies = build_all_price_anomalies(observations)
 
     if zip_code:
-        anomalies = [a for a in anomalies if a.zip_code == zip_code]
+        anomalies = [
+            a for a in anomalies if (a.zip_code or "") == zip_code
+        ]
     if retailer:
         anomalies = [a for a in anomalies if a.retailer.lower() == retailer.lower()]
     if signal:

@@ -1,68 +1,89 @@
 """
 Coupon Sentinel — Local Price Memory Models (PR-2)
 
-Additive layer on PR-1 evidence substrate. Groups observations into local market
-memory and derives deterministic BUY/WAIT/NORMAL signals from median baselines.
+Canonical data model for local market memory, built on top of PR-1's
+PriceObservation evidence layer. Additive only — does not modify any
+model in deal_models.py.
 
-Baseline (median, all-time, no decay) is independent from observation confidence
-(freshness weighting lives in PR-1's aggregate_observation_confidence only).
+Architecture principle (extends PR-1's layering, never collapse):
+  Evidence → PriceObservation → DealEvent → Consumer recommendation
+                    ↓
+            LocalPriceBaseline → PriceAnomaly → RecommendationSignal
+
+Ratified design decisions (ATLAS Handoff, C-396 — do not relitigate mid-PR):
+  - Baseline window is ALL-TIME, no decay.
+  - Baseline statistic is MEDIAN, not mean.
+  - Baseline and confidence are separate concerns.
+  - Below MIN_BASELINE_SAMPLES → INSUFFICIENT_DATA.
+
+Consumer protection guardrails (inherited from PR-1):
+  - A price anomaly is an observation, not an accusation.
+  - No behavioral profiling. No identity persisted with price memory.
 """
 
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
-# Canonical local-market unit: (zip_code, retailer_lower, product_id).
-# Retailer in the key is normalized lowercase for grouping; API models use display casing.
-GroupKey = Tuple[str, str, str]
+from backend.deal_models import EvidenceType
+
+
+MIN_BASELINE_SAMPLES = 3
+"""Minimum PriceObservations before a signal is trustworthy."""
 
 
 class RecommendationSignal(str, Enum):
-    """Deterministic signal from deviation off local median baseline."""
+    """Deterministic classification of current price vs. local baseline."""
 
-    STRONG_DEAL = "STRONG_DEAL"
-    GOOD_DEAL = "GOOD_DEAL"
-    NORMAL = "NORMAL"
-    ABOVE_BASELINE = "ABOVE_BASELINE"
-    INSUFFICIENT_DATA = "INSUFFICIENT_DATA"
+    STRONG_DEAL = "strong_deal"
+    GOOD_DEAL = "good_deal"
+    NORMAL = "normal"
+    ABOVE_BASELINE = "above_baseline"
+    INSUFFICIENT_DATA = "insufficient_data"
 
 
 class LocalPriceBaseline(BaseModel):
-    """All-time median price memory for one local market group."""
+    """
+    All-time median local price for (zip_code, retailer, product_id).
+
+    Grouping key excludes store_id — store_id stays on observations for
+    drill-down, not as the primary market unit.
+    """
 
     product_id: str
-    zip_code: str
+    zip_code: Optional[str] = None
     retailer: str
-    store_id: Optional[str] = None
-    median_price: float
-    sample_size: int
-    min_observed: float
-    max_observed: float
+    median_price: float = Field(..., ge=0.0)
+    sample_size: int = Field(..., ge=0)
+    min_observed: float = Field(..., ge=0.0)
+    max_observed: float = Field(..., ge=0.0)
     first_observed_at: datetime
     last_observed_at: datetime
 
 
 class PriceAnomaly(BaseModel):
     """
-    Current price vs local baseline with deterministic recommendation signal.
+    Interprets a current price against a LocalPriceBaseline.
 
-    A price anomaly is an observation — not inventory evidence.
+    confidence comes from PR-1 aggregate_observation_confidence() — not
+    recomputed in the price-memory engine.
     """
 
+    id: str
     product_id: str
-    zip_code: str
+    zip_code: Optional[str] = None
     retailer: str
-    store_id: Optional[str] = None
-    current_price: float
-    observed_at: datetime
-    observation_ids: List[str] = Field(default_factory=list)
-    baseline: Optional[LocalPriceBaseline] = None
-    deviation_pct: Optional[float] = None
+    current_price: float = Field(..., ge=0.0)
+    baseline: LocalPriceBaseline
+    deviation_pct: float
     signal: RecommendationSignal
+    confidence: float = Field(..., ge=0.0, le=1.0)
+    evidence_types: List[EvidenceType] = Field(default_factory=list)
     evidence_summary: List[str] = Field(default_factory=list)
-    confidence: float = Field(0.0, ge=0.0, le=1.0)
+    observation_ids: List[str] = Field(default_factory=list)
+    computed_at: datetime
     is_mock_data: bool = True
 
 
