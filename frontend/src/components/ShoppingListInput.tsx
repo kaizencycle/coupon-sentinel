@@ -35,7 +35,7 @@ export function ShoppingListInput({ items, onAdd, onRemove }: Props) {
 
   return (
     <div className="shopping-list-input">
-      <h2>🛒 Shopping List</h2>
+      <h2>Shopping List</h2>
 
       <div className="add-item-form">
         <input
@@ -85,7 +85,7 @@ export function ShoppingListInput({ items, onAdd, onRemove }: Props) {
                 className="remove-button"
                 title="Remove item"
               >
-                ✕
+                ×
               </button>
             </li>
           ))}

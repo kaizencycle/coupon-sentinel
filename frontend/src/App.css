@@ -322,7 +322,7 @@
 
 .toggle-label input[type='checkbox'] {
   margin-top: 0.15rem;
-  accent-color: var(--stamp-blue);
+  accent-color: var(--stamp-green);
 }
 
 .toggle-label small {

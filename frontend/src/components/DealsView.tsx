@@ -22,13 +22,13 @@ export function DealsView({ deals, isLoading, error, notice }: DealsViewProps) {
   }
 
   if (error) {
-    return <div className="error-message">❌ {error}</div>;
+    return <div className="error-message">{error}</div>;
   }
 
   return (
     <div className="deals-view">
       <div className="deals-header">
-        <h2>📊 Consumer Deal Intelligence</h2>
+        <h2>Consumer Deal Intelligence</h2>
         <p className="deals-subtitle">
           Evidence-backed prices from mock fixtures — not live retailer data.
         </p>

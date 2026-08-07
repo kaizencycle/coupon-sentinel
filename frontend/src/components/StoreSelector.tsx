@@ -37,7 +37,7 @@ export function StoreSelector({
 
   return (
     <div className="store-selector">
-      <h2>🏪 Stores</h2>
+      <h2>Stores</h2>
 
       <div className="stores-grid">
         {availableStores.map((store) => (
@@ -68,7 +68,7 @@ export function StoreSelector({
 
       {selectedStores.length === 0 && (
         <p className="warning-message">
-          ⚠️ Select at least one store to optimize
+          Select at least one store to optimize
         </p>
       )}
     </div>

@@ -7,7 +7,7 @@ interface Props {
 export function OptimizedPlan({ result }: Props) {
   return (
     <div className="optimized-plan">
-      <h2>📋 Your Shopping Plan</h2>
+      <h2>Your Shopping Plan</h2>
 
       {result.plans.map((plan, planIdx) => (
         <div key={planIdx} className="store-plan">
@@ -75,7 +75,7 @@ export function OptimizedPlan({ result }: Props) {
 
           {plan.items.some((i) => i.applied_coupons.length > 0) && (
             <div className="coupons-used">
-              <h4>🎫 Coupons Applied</h4>
+              <h4>Coupons applied</h4>
               <ul>
                 {plan.items
                   .flatMap((i) => i.applied_coupons)
@@ -97,7 +97,7 @@ export function OptimizedPlan({ result }: Props) {
 
       {result.action_steps.length > 0 && (
         <div className="action-steps">
-          <h3>📝 Step-by-Step Instructions</h3>
+          <h3>Step-by-step instructions</h3>
           <div className="steps-list">
             {result.action_steps.map((step, idx) => (
               <div
@@ -113,7 +113,7 @@ export function OptimizedPlan({ result }: Props) {
 
       {result.unfulfilled_items.length > 0 && (
         <div className="unfulfilled-items">
-          <h3>⚠️ Items Not Found</h3>
+          <h3>Items not found</h3>
           <ul>
             {result.unfulfilled_items.map((item, idx) => (
               <li key={idx}>

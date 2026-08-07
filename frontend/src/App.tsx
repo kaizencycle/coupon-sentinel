@@ -114,8 +114,8 @@ function App() {
 
   return (
     <div className="app">
-      <header className="header">
-        <h1>🛒 Coupon Sentinel</h1>
+      <header className="masthead">
+        <h1>Coupon Sentinel</h1>
         <p className="tagline">Consumer savings intelligence — evidence before recommendation.</p>
         <nav className="app-nav">
           <button
@@ -154,7 +154,7 @@ function App() {
 
               <div className="zip-code-section">
                 <label>
-                  📍 Zip Code:
+                  Zip Code:
                   <input
                     type="text"
                     value={zipCode}
@@ -171,17 +171,17 @@ function App() {
                   disabled={isLoading || shoppingList.length === 0}
                   className="optimize-button"
                 >
-                  {isLoading ? '⏳ Finding Best Deals...' : '🔍 Find Best Deals'}
+                  {isLoading ? 'Finding best deals…' : 'Find best deals'}
                 </button>
 
                 {(result || shoppingList.length > 0) && (
                   <button onClick={handleReset} className="reset-button">
-                    🔄 Start Over
+                    Start over
                   </button>
                 )}
               </div>
 
-              {error && <div className="error-message">❌ {error}</div>}
+              {error && <div className="error-message">{error}</div>}
             </div>
 
             {result && (
@@ -203,7 +203,7 @@ function App() {
 
       <footer className="footer">
         <p>
-          Coupon Sentinel v0.2 • Evidence → Observation → Deal •{' '}
+          COUPON SENTINEL · v0.2 · EVIDENCE → OBSERVATION → DEAL ·{' '}
           <a href="https://github.com/kaizencycle/coupon-sentinel">GitHub</a>
         </p>
       </footer>
