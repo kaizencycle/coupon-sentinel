@@ -54,27 +54,28 @@ If you prefer manual configuration:
 
 4. **Deploy!** Your API will be at: `https://coupon-sentinel-api.onrender.com`
 
-### Deploy Frontend to Vercel (Alternative)
+### Deploy Frontend to Vercel (recommended for UI)
 
-If you prefer Vercel for the frontend:
+The receipt-themed UI lives in `frontend/` (`index.html`, `src/index.css`, `src/App.css`, `src/App.tsx`, `src/components/*`).
 
-1. **Install Vercel CLI:**
+1. **Vercel Dashboard → Project → Settings → General**
+   - **Root Directory:** `frontend` (required — app is not at repo root)
+   - Framework Preset: Vite (or use `frontend/vercel.json`)
+
+2. **Environment Variables** (Production):
+   - `VITE_API_URL` = `https://coupon-sentinel-api.onrender.com` (your Render API URL)
+
+3. **Redeploy** production after env changes (Vite bakes `VITE_API_URL` at build time).
+
+4. **CLI alternative:**
    ```bash
    npm i -g vercel
-   ```
-
-2. **Deploy:**
-   ```bash
    cd frontend
-   vercel
+   vercel link
+   vercel --prod
    ```
 
-3. **Set environment variable** in Vercel dashboard:
-   - `VITE_API_URL` = `https://coupon-sentinel-api.onrender.com`
-
-4. **Redeploy** to apply the environment variable.
-
-**Note:** The `render.yaml` file will deploy both backend and frontend to Render automatically.
+Production URL (if linked to this repo): [https://coupon-sentinel.vercel.app](https://coupon-sentinel.vercel.app)
 
 ---
 
