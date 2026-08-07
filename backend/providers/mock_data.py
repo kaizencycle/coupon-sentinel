@@ -13,7 +13,12 @@ SUPPORTED_STORES = ["Target", "Walmart", "Costco"]
 
 
 def get_mock_store_items() -> List[StoreItem]:
-    """Return mock store inventory data."""
+    """Return mock store inventory data.
+
+    PR-3 product_id bridge: only items with a matching ProductIdentity in
+    mock_deal_data.py are bridged. All other catalog rows remain product_id=None
+    (Target milk, 2% milk, 18/60-count eggs, meat, produce, Costco bulk, etc.).
+    """
     
     items = [
         # ============================================================
@@ -180,7 +185,8 @@ def get_mock_store_items() -> List[StoreItem]:
             package_unit="gallon",
             price=3.48,
             category="dairy",
-            in_stock=True
+            in_stock=True,
+            product_id="prod-gv-milk",
         ),
         StoreItem(
             store_name="Walmart",
@@ -200,7 +206,8 @@ def get_mock_store_items() -> List[StoreItem]:
             package_unit="count",
             price=2.98,
             category="dairy",
-            in_stock=True
+            in_stock=True,
+            product_id="prod-gv-eggs",
         ),
         StoreItem(
             store_name="Walmart",
@@ -231,7 +238,8 @@ def get_mock_store_items() -> List[StoreItem]:
             package_unit="count",
             price=1.48,
             category="bakery",
-            in_stock=True
+            in_stock=True,
+            product_id="prod-gv-wheat-bread",
         ),
         StoreItem(
             store_name="Walmart",

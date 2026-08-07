@@ -92,3 +92,17 @@ class PriceAnomalyDetail(PriceAnomaly):
 
     product_name: Optional[str] = None
     product_brand: Optional[str] = None
+
+
+class OptimizedItemDealContext(BaseModel):
+    """
+    Local price-memory context attached to an optimized catalog item.
+
+    Separate from OptimizedItem — attachable only when product_id bridge exists.
+    """
+
+    product_id: str
+    signal: RecommendationSignal
+    deviation_pct: float
+    baseline_median_price: float
+    confidence: float = Field(..., ge=0.0, le=1.0)

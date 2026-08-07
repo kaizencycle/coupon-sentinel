@@ -221,7 +221,12 @@ Main optimization endpoint.
 - `GET /api/deals` - List deal events (mock fixtures, read-only)
 - `GET /api/deals/{deal_id}` - Single deal with provenance
 - `GET /api/price-observations` - Normalized price observations
+- `GET /api/price-memory/{product_id}` - Local median baseline (PR-2)
+- `GET /api/anomalies` - Price anomalies and recommendation signals (PR-2)
+- `POST /api/optimize/with-deal-context` - Optimize plus optional per-item deal context (PR-3)
 - `GET /health` - Health check
+
+**Product identity bridge (PR-3):** Optimizer `StoreItem` rows may carry an optional `product_id` linking to deal-intelligence `ProductIdentity`. After this PR only a few mock catalog overlaps are bridged (Walmart whole milk, 12-count eggs, whole wheat bread). Most catalog rows remain unbridged — `deal_context` is `null`, not an error. Full coverage is a fixture-data follow-up, not a code gap.
 
 ---
 
@@ -238,6 +243,8 @@ Main optimization endpoint.
 - ✅ Price observations + deal events API
 - ✅ Effective-price engine
 - ✅ Minimal Deals UI with provenance display
+- ✅ Local price memory + BUY/WAIT signals (PR-2)
+- ✅ Product identity bridge + deal-aware optimize endpoint (PR-3, partial catalog)
 
 ### V1 (Roadmap)
 - [ ] Real store API integrations (public data only)
