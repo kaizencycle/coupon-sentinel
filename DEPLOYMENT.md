@@ -77,6 +77,37 @@ The receipt-themed UI lives in `frontend/` (`index.html`, `src/index.css`, `src/
 
 Production URL (if linked to this repo): [https://coupon-sentinel.vercel.app](https://coupon-sentinel.vercel.app)
 
+### Vercel stuck on an old PR branch (e.g. PR #10 / December 2025)
+
+If the dashboard only lets you deploy `cursor/backend-module-import-error-b457` (or another old branch) instead of `main`:
+
+1. **Settings → Git → Production Branch** → set to `main` (type it if missing from the dropdown).
+2. If `main` never appears: **Disconnect** the Git repo, **Reconnect** `kaizencycle/coupon-sentinel`, choose **Production Branch: `main`** during setup.
+3. **Settings → General → Root Directory** → `frontend`.
+4. **Deployments → Create Deployment** → Branch: `main` → Deploy.
+
+**Fastest one-off fix (CLI, from your machine):**
+
+```bash
+git checkout main
+cd frontend
+npm i -g vercel
+vercel login
+vercel link    # pick the coupon-sentinel project
+vercel --prod  # deploys current main to production
+```
+
+**CI fix (recommended):** merge `.github/workflows/vercel-frontend-production.yml` and add GitHub Actions secrets:
+
+| Secret | Where to find it |
+|--------|------------------|
+| `VERCEL_TOKEN` | [vercel.com/account/tokens](https://vercel.com/account/tokens) |
+| `VERCEL_ORG_ID` | Team Settings → General, or `frontend/.vercel/project.json` after `vercel link` |
+| `VERCEL_PROJECT_ID` | Project → Settings → General → Project ID |
+| `VITE_API_URL` | Optional if already set in Vercel env — `https://coupon-sentinel-api.onrender.com` |
+
+Every push to `main` that touches `frontend/` will then deploy production without relying on the Vercel branch picker.
+
 ---
 
 ## Option 2: Docker Compose (Self-Hosted)
