@@ -6,7 +6,8 @@ services:
     plan: free
     rootDir: .
     buildCommand: pip install -r backend/requirements.txt
-    startCommand: python -m uvicorn wsgi:app --host 0.0.0.0 --port ${PORT:-8000}
+    # Use backend/run.py — sets sys.path before importing backend (avoids ModuleNotFoundError)
+    startCommand: python3 backend/run.py
     envVars:
       - key: PORT
         value: 8000
@@ -15,7 +16,7 @@ services:
       - key: LOG_LEVEL
         value: INFO
       - key: PYTHONPATH
-        value: /opt/render/project/src
+        value: .
     healthCheckPath: /health
     autoDeploy: true
 
