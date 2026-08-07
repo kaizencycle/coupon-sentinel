@@ -1,8 +1,8 @@
 # 🛒 Coupon Sentinel
 
-**Extreme couponing, automated.**
+**Consumer-side savings intelligence — evidence before recommendation.**
 
-A grocery optimization engine that finds the cheapest way to fulfill your shopping list by automatically stacking coupons, comparing stores, and tracking rebates.
+A grocery optimization engine that finds the cheapest way to fulfill your shopping list by automatically stacking coupons, comparing stores, and tracking rebates. PR-1 adds the canonical deal-intelligence foundation: normalized price observations, evidence types, deal events, and effective-price calculations — without replacing the existing optimizer.
 
 ---
 
@@ -21,6 +21,16 @@ Coupon Sentinel takes your shopping list and:
    - Single store convenience
    - Multi-store maximum savings
 5. **Generates** a step-by-step shopping plan
+
+**Deal Intelligence (PR-1)** surfaces evidence-backed deal events derived from price observations — receipts, retailer listings, community reports — with provenance, confidence, and inventory uncertainty visible to the consumer.
+
+**Architecture principle (never collapse these layers):**
+
+```
+Evidence → PriceObservation → DealEvent → Consumer recommendation
+```
+
+Observation ≠ Interpretation ≠ Recommendation. AI-generated recommendations are never the source of truth.
 
 **Example Output:**
 ```
@@ -81,16 +91,20 @@ Visit:
 coupon-sentinel/
 ├── backend/               # FastAPI service
 │   ├── app.py            # API endpoints
-│   ├── models.py         # Pydantic data models
+│   ├── models.py         # Optimizer Pydantic models
+│   ├── deal_models.py    # Deal intelligence canonical models (PR-1)
 │   ├── engines/
 │   │   ├── pricing_engine.py     # Core optimization logic
-│   │   └── stacking_logic.py     # Coupon stacking rules
-│   └── providers/
-│       └── mock_data.py           # Mock store/coupon data
+│   │   ├── stacking_logic.py     # Coupon stacking rules
+│   │   └── deal_engine.py        # Effective price + evidence aggregation
+│   ├── providers/
+│   │   ├── mock_data.py          # Mock store/coupon data
+│   │   └── mock_deal_data.py     # Mock observations/deals (fixtures)
+│   └── tests/
 │
 ├── frontend/             # React + TypeScript UI
 │   ├── src/
-│   │   ├── App.tsx              # Main application
+│   │   ├── App.tsx              # Main application + nav
 │   │   ├── types.ts             # Type definitions
 │   │   ├── api/
 │   │   │   └── client.ts        # API client
@@ -98,7 +112,8 @@ coupon-sentinel/
 │   │       ├── ShoppingListInput.tsx
 │   │       ├── StoreSelector.tsx
 │   │       ├── SavingsSummary.tsx
-│   │       └── OptimizedPlan.tsx
+│   │       ├── OptimizedPlan.tsx
+│   │       └── DealsView.tsx    # Deal intelligence UI (PR-1)
 │   └── package.json
 │
 ├── docker-compose.yml    # Container orchestration
@@ -203,6 +218,9 @@ Main optimization endpoint.
 - `GET /api/stores` - List available stores
 - `GET /api/items` - List inventory
 - `GET /api/coupons` - List available coupons
+- `GET /api/deals` - List deal events (mock fixtures, read-only)
+- `GET /api/deals/{deal_id}` - Single deal with provenance
+- `GET /api/price-observations` - Normalized price observations
 - `GET /health` - Health check
 
 ---
@@ -216,19 +234,24 @@ Main optimization endpoint.
 - ✅ Unit price calculation
 - ✅ Mock data for testing
 - ✅ Clean React UI
+- ✅ Canonical deal intelligence models (PR-1)
+- ✅ Price observations + deal events API
+- ✅ Effective-price engine
+- ✅ Minimal Deals UI with provenance display
 
 ### V1 (Roadmap)
-- [ ] Real store API integrations
+- [ ] Real store API integrations (public data only)
 - [ ] Rebate app APIs (Ibotta, Fetch)
+- [ ] Local/community observation aggregation by ZIP/store/SKU
+- [ ] Observation independence modeling (source identity)
 - [ ] Price history tracking
-- [ ] User accounts & saved lists
-- [ ] Receipt OCR
-- [ ] Price predictions ("Wait 3 days")
+- [ ] Receipt ingestion (normalized, privacy-minimized)
+- [ ] BUY / WAIT recommendations (interpretation layer)
 
 ### V2 (Future)
+- [ ] User accounts & saved lists (optional, privacy-first)
 - [ ] Mobile app (React Native)
-- [ ] Push notifications for deals
-- [ ] Community price submissions
+- [ ] Push notifications for verified deals only
 - [ ] Meal planning integration
 
 ---
@@ -294,8 +317,24 @@ This is a side project, but contributions welcome!
 - ❌ Auto-redeem coupons without consent
 - ❌ Exploit system vulnerabilities
 - ❌ Use insider pricing data
+- ❌ Build behavioral surveillance profiles from receipts
+- ❌ Rank deals by affiliate commission
+- ❌ Claim inventory without evidence
+- ❌ Present AI output as source of truth
 
-**Design Philosophy:** This is a **financial literacy tool**, not a loophole exploit.
+**Consumer protection guardrails (PR-1):**
+1. Public or user-contributed information only.
+2. No unauthorized access to retailer systems.
+3. No bypassing login/access controls.
+4. No claims of inventory without evidence.
+5. No claiming personalized pricing from one observation.
+6. Price anomalies are observations, not accusations.
+7. No ranking by affiliate commission.
+8. Consumer privacy takes priority over behavioral monetization.
+9. Receipt data minimized after extracting market facts.
+10. Every displayed deal traceable to provenance.
+
+**Design Philosophy:** This is a **financial literacy tool**, not a loophole exploit. A receipt is evidence of a transaction, not permission to profile the consumer.
 
 ---
 

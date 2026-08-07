@@ -13,7 +13,16 @@ from typing import List, Optional
 
 from .models import OptimizeRequest, OptimizeResponse, ShoppingItem
 from .engines import optimize_shopping_list
-from .providers import get_mock_store_items, get_mock_coupons, SUPPORTED_STORES
+from .engines.deal_engine import enrich_deal_event, enrich_price_observation
+from .providers import (
+    get_mock_store_items,
+    get_mock_coupons,
+    SUPPORTED_STORES,
+    get_mock_deal_events,
+    get_mock_price_observations,
+    get_product_index,
+    MOCK_DATA_NOTICE,
+)
 
 
 # ============================================================================
@@ -167,6 +176,114 @@ async def list_categories():
     return {
         "categories": categories,
         "count": len(categories)
+    }
+
+
+# ============================================================================
+# Deal Intelligence Endpoints (PR-1 — read-only, mock fixtures)
+# ============================================================================
+
+@app.get("/api/deals")
+async def list_deals(
+    zip_code: Optional[str] = Query(None, description="Filter by zip code"),
+    retailer: Optional[str] = Query(None, description="Filter by retailer"),
+    deal_type: Optional[str] = Query(None, description="Filter by deal type"),
+    product_id: Optional[str] = Query(None, description="Filter by product ID"),
+):
+    """
+    List canonical deal events derived from mock observations.
+
+    All data is synthetic fixture data — not live retailer pricing.
+  """
+    products = get_product_index()
+    observations = {o.id: o for o in get_mock_price_observations()}
+    deals = get_mock_deal_events()
+
+    if zip_code:
+        deals = [d for d in deals if d.zip_code == zip_code]
+    if retailer:
+        deals = [d for d in deals if d.retailer.lower() == retailer.lower()]
+    if deal_type:
+        deals = [d for d in deals if d.deal_type.value == deal_type.lower()]
+    if product_id:
+        deals = [d for d in deals if d.product_id == product_id]
+
+    enriched = []
+    for deal in deals:
+        product = products.get(deal.product_id)
+        if not product:
+            continue
+        linked_obs = [observations[i] for i in deal.observation_ids if i in observations]
+        enriched.append(
+            enrich_deal_event(deal, product, linked_obs).model_dump(mode="json")
+        )
+
+    return {
+        "deals": enriched,
+        "count": len(enriched),
+        "is_mock_data": True,
+        "notice": MOCK_DATA_NOTICE,
+    }
+
+
+@app.get("/api/deals/{deal_id}")
+async def get_deal(deal_id: str):
+    """Get a single deal event with provenance summary."""
+    products = get_product_index()
+    observations = {o.id: o for o in get_mock_price_observations()}
+
+    for deal in get_mock_deal_events():
+        if deal.id == deal_id:
+            product = products.get(deal.product_id)
+            if not product:
+                raise HTTPException(status_code=404, detail="Product not found for deal")
+            linked_obs = [observations[i] for i in deal.observation_ids if i in observations]
+            detail = enrich_deal_event(deal, product, linked_obs)
+            return {
+                "deal": detail.model_dump(mode="json"),
+                "is_mock_data": True,
+                "notice": MOCK_DATA_NOTICE,
+            }
+
+    raise HTTPException(status_code=404, detail=f"Deal not found: {deal_id}")
+
+
+@app.get("/api/price-observations")
+async def list_price_observations(
+    zip_code: Optional[str] = Query(None, description="Filter by zip code"),
+    retailer: Optional[str] = Query(None, description="Filter by retailer"),
+    product_id: Optional[str] = Query(None, description="Filter by product ID"),
+    evidence_type: Optional[str] = Query(None, description="Filter by evidence type"),
+):
+    """
+    List normalized price observations (evidence layer).
+
+    Observations are not deals or recommendations — they are raw evidenced prices.
+    """
+    products = get_product_index()
+    observations = get_mock_price_observations()
+
+    if zip_code:
+        observations = [o for o in observations if o.zip_code == zip_code]
+    if retailer:
+        observations = [o for o in observations if o.retailer.lower() == retailer.lower()]
+    if product_id:
+        observations = [o for o in observations if o.product_id == product_id]
+    if evidence_type:
+        observations = [
+            o for o in observations if o.evidence_type.value == evidence_type.lower()
+        ]
+
+    enriched = [
+        enrich_price_observation(o, products.get(o.product_id)).model_dump(mode="json")
+        for o in observations
+    ]
+
+    return {
+        "observations": enriched,
+        "count": len(enriched),
+        "is_mock_data": True,
+        "notice": MOCK_DATA_NOTICE,
     }
 
 
