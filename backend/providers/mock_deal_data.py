@@ -5,7 +5,7 @@ FIXTURE / MOCK DATA ONLY — not live retailer prices.
 Demonstrates canonical observation → deal event flow including receipt-backed evidence.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Tuple
 
 from backend.deal_models import (
@@ -24,6 +24,10 @@ MOCK_DATA_NOTICE = (
 
 _OBSERVED_AT = datetime(2026, 8, 7, 12, 0, 0, tzinfo=timezone.utc)
 _OBSERVED_EARLIER = datetime(2026, 8, 6, 9, 30, 0, tzinfo=timezone.utc)
+
+
+def _days_before(base: datetime, days: int) -> datetime:
+    return base - timedelta(days=days)
 
 
 def get_mock_products() -> List[ProductIdentity]:
@@ -100,6 +104,15 @@ def get_mock_products() -> List[ProductIdentity]:
             package_size=13.0,
             package_unit="oz",
         ),
+        ProductIdentity(
+            id="prod-yogurt",
+            name="Greek Yogurt",
+            brand="Chobani",
+            upc="036632000500",
+            category="dairy",
+            package_size=5.3,
+            package_unit="oz",
+        ),
     ]
 
 
@@ -155,7 +168,97 @@ def get_mock_price_observations() -> List[PriceObservation]:
             in_stock=None,
             documented_rebate_value=2.00,
         ),
-        # Normal shelf price
+        # Tide Pods — multi-week local price history (PR-2 fixtures)
+        PriceObservation(
+            id="obs-tide-hist-42d",
+            product_id="prod-tide-pods",
+            upc="012345678901",
+            retailer="Target",
+            store_id="target-11429",
+            zip_code="11429",
+            observed_price=14.99,
+            regular_price=14.99,
+            observed_at=_days_before(_OBSERVED_AT, 42),
+            evidence_type=EvidenceType.RETAILER_PUBLIC,
+            source="mock_retailer_listing",
+            confidence=0.85,
+            in_stock=True,
+        ),
+        PriceObservation(
+            id="obs-tide-hist-35d",
+            product_id="prod-tide-pods",
+            upc="012345678901",
+            retailer="Target",
+            store_id="target-11429",
+            zip_code="11429",
+            observed_price=14.49,
+            regular_price=14.99,
+            observed_at=_days_before(_OBSERVED_AT, 35),
+            evidence_type=EvidenceType.WEEKLY_AD,
+            source="mock_weekly_ad",
+            confidence=0.80,
+            in_stock=None,
+        ),
+        PriceObservation(
+            id="obs-tide-hist-28d",
+            product_id="prod-tide-pods",
+            upc="012345678901",
+            retailer="Target",
+            store_id="target-11429",
+            zip_code="11429",
+            observed_price=13.99,
+            regular_price=14.99,
+            observed_at=_days_before(_OBSERVED_AT, 28),
+            evidence_type=EvidenceType.RETAILER_PUBLIC,
+            source="mock_retailer_listing",
+            confidence=0.85,
+            in_stock=True,
+        ),
+        PriceObservation(
+            id="obs-tide-hist-21d",
+            product_id="prod-tide-pods",
+            upc="012345678901",
+            retailer="Target",
+            store_id="target-11429",
+            zip_code="11429",
+            observed_price=14.99,
+            regular_price=14.99,
+            observed_at=_days_before(_OBSERVED_AT, 21),
+            evidence_type=EvidenceType.COMMUNITY_REPORT,
+            source="mock_community_spike",
+            confidence=0.55,
+            in_stock=None,
+        ),
+        PriceObservation(
+            id="obs-tide-hist-14d",
+            product_id="prod-tide-pods",
+            upc="012345678901",
+            retailer="Target",
+            store_id="target-11429",
+            zip_code="11429",
+            observed_price=14.49,
+            regular_price=14.99,
+            observed_at=_days_before(_OBSERVED_AT, 14),
+            evidence_type=EvidenceType.RETAILER_PUBLIC,
+            source="mock_retailer_listing",
+            confidence=0.85,
+            in_stock=True,
+        ),
+        PriceObservation(
+            id="obs-tide-hist-7d",
+            product_id="prod-tide-pods",
+            upc="012345678901",
+            retailer="Target",
+            store_id="target-11429",
+            zip_code="11429",
+            observed_price=12.99,
+            regular_price=14.99,
+            observed_at=_days_before(_OBSERVED_AT, 7),
+            evidence_type=EvidenceType.WEEKLY_AD,
+            source="mock_weekly_ad",
+            confidence=0.78,
+            in_stock=None,
+        ),
         PriceObservation(
             id="obs-milk-shelf",
             product_id="prod-gv-milk",
@@ -343,6 +446,37 @@ def get_mock_price_observations() -> List[PriceObservation]:
             confidence=0.70,
             in_stock=None,
             documented_rebate_value=1.00,
+        ),
+        # Insufficient sample size fixture (< min_samples for baseline signal)
+        PriceObservation(
+            id="obs-yogurt-1",
+            product_id="prod-yogurt",
+            upc="036632000500",
+            retailer="Target",
+            store_id="target-11566",
+            zip_code="11566",
+            observed_price=1.29,
+            regular_price=1.49,
+            observed_at=_days_before(_OBSERVED_AT, 10),
+            evidence_type=EvidenceType.RETAILER_PUBLIC,
+            source="mock_retailer_listing",
+            confidence=0.85,
+            in_stock=True,
+        ),
+        PriceObservation(
+            id="obs-yogurt-2",
+            product_id="prod-yogurt",
+            upc="036632000500",
+            retailer="Target",
+            store_id="target-11566",
+            zip_code="11566",
+            observed_price=1.19,
+            regular_price=1.49,
+            observed_at=_OBSERVED_AT,
+            evidence_type=EvidenceType.COMMUNITY_REPORT,
+            source="mock_community_user",
+            confidence=0.50,
+            in_stock=None,
         ),
     ]
 
