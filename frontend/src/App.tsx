@@ -1,14 +1,19 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ShoppingListInput } from './components/ShoppingListInput';
 import { StoreSelector } from './components/StoreSelector';
 import { SavingsSummary } from './components/SavingsSummary';
 import { OptimizedPlan } from './components/OptimizedPlan';
-import { optimizeShoppingList } from './api/client';
-import type { ShoppingItem, OptimizeResponse } from './types';
+import { DealsView } from './components/DealsView';
+import { optimizeShoppingList, getDeals } from './api/client';
+import type { ShoppingItem, OptimizeResponse, DealEventDetail } from './types';
 import './App.css';
 
+type AppView = 'optimizer' | 'deals';
+
 function App() {
-  // State
+  const [activeView, setActiveView] = useState<AppView>('optimizer');
+
+  // Optimizer state
   const [shoppingList, setShoppingList] = useState<ShoppingItem[]>([]);
   const [selectedStores, setSelectedStores] = useState<string[]>(['Target', 'Walmart']);
   const [allowMultiStore, setAllowMultiStore] = useState(false);
@@ -17,10 +22,43 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<OptimizeResponse | null>(null);
 
-  // Handlers
+  // Deals state
+  const [deals, setDeals] = useState<DealEventDetail[]>([]);
+  const [dealsLoading, setDealsLoading] = useState(false);
+  const [dealsError, setDealsError] = useState<string | null>(null);
+  const [dealsNotice, setDealsNotice] = useState<string | undefined>();
+
+  useEffect(() => {
+    if (activeView !== 'deals') return;
+
+    let cancelled = false;
+    setDealsLoading(true);
+    setDealsError(null);
+
+    getDeals()
+      .then((response) => {
+        if (!cancelled) {
+          setDeals(response.deals);
+          setDealsNotice(response.notice);
+        }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setDealsError(err instanceof Error ? err.message : 'Failed to load deals');
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setDealsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [activeView]);
+
   const handleAddItem = (item: ShoppingItem) => {
     setShoppingList([...shoppingList, item]);
-    setResult(null); // Clear previous results
+    setResult(null);
   };
 
   const handleRemoveItem = (index: number) => {
@@ -78,67 +116,94 @@ function App() {
     <div className="app">
       <header className="header">
         <h1>🛒 Coupon Sentinel</h1>
-        <p className="tagline">Extreme couponing, automated.</p>
+        <p className="tagline">Consumer savings intelligence — evidence before recommendation.</p>
+        <nav className="app-nav">
+          <button
+            type="button"
+            className={`nav-tab ${activeView === 'optimizer' ? 'active' : ''}`}
+            onClick={() => setActiveView('optimizer')}
+          >
+            Shopping List Optimizer
+          </button>
+          <button
+            type="button"
+            className={`nav-tab ${activeView === 'deals' ? 'active' : ''}`}
+            onClick={() => setActiveView('deals')}
+          >
+            Deal Intelligence
+          </button>
+        </nav>
       </header>
 
-      <main className="main">
-        <div className="input-section">
-          <ShoppingListInput
-            items={shoppingList}
-            onAdd={handleAddItem}
-            onRemove={handleRemoveItem}
-          />
-
-          <StoreSelector
-            selectedStores={selectedStores}
-            onToggle={handleToggleStore}
-            allowMultiStore={allowMultiStore}
-            onMultiStoreChange={setAllowMultiStore}
-          />
-
-          <div className="zip-code-section">
-            <label>
-              📍 Zip Code:
-              <input
-                type="text"
-                value={zipCode}
-                onChange={(e) => setZipCode(e.target.value)}
-                maxLength={5}
-                className="zip-input"
+      <main className={`main ${activeView === 'deals' ? 'main-deals' : ''}`}>
+        {activeView === 'optimizer' ? (
+          <>
+            <div className="input-section">
+              <ShoppingListInput
+                items={shoppingList}
+                onAdd={handleAddItem}
+                onRemove={handleRemoveItem}
               />
-            </label>
-          </div>
 
-          <div className="actions">
-            <button
-              onClick={handleOptimize}
-              disabled={isLoading || shoppingList.length === 0}
-              className="optimize-button"
-            >
-              {isLoading ? '⏳ Finding Best Deals...' : '🔍 Find Best Deals'}
-            </button>
+              <StoreSelector
+                selectedStores={selectedStores}
+                onToggle={handleToggleStore}
+                allowMultiStore={allowMultiStore}
+                onMultiStoreChange={setAllowMultiStore}
+              />
 
-            {(result || shoppingList.length > 0) && (
-              <button onClick={handleReset} className="reset-button">
-                🔄 Start Over
-              </button>
+              <div className="zip-code-section">
+                <label>
+                  📍 Zip Code:
+                  <input
+                    type="text"
+                    value={zipCode}
+                    onChange={(e) => setZipCode(e.target.value)}
+                    maxLength={5}
+                    className="zip-input"
+                  />
+                </label>
+              </div>
+
+              <div className="actions">
+                <button
+                  onClick={handleOptimize}
+                  disabled={isLoading || shoppingList.length === 0}
+                  className="optimize-button"
+                >
+                  {isLoading ? '⏳ Finding Best Deals...' : '🔍 Find Best Deals'}
+                </button>
+
+                {(result || shoppingList.length > 0) && (
+                  <button onClick={handleReset} className="reset-button">
+                    🔄 Start Over
+                  </button>
+                )}
+              </div>
+
+              {error && <div className="error-message">❌ {error}</div>}
+            </div>
+
+            {result && (
+              <div className="results-section">
+                <SavingsSummary result={result} />
+                <OptimizedPlan result={result} />
+              </div>
             )}
-          </div>
-
-          {error && <div className="error-message">❌ {error}</div>}
-        </div>
-
-        {result && (
-          <div className="results-section">
-            <SavingsSummary result={result} />
-            <OptimizedPlan result={result} />
-          </div>
+          </>
+        ) : (
+          <DealsView
+            deals={deals}
+            isLoading={dealsLoading}
+            error={dealsError}
+            notice={dealsNotice}
+          />
         )}
       </main>
 
       <footer className="footer">
         <p>
-          Coupon Sentinel v0.1 • Built for real people, not corporations •{' '}
+          Coupon Sentinel v0.2 • Evidence → Observation → Deal •{' '}
           <a href="https://github.com/kaizencycle/coupon-sentinel">GitHub</a>
         </p>
       </footer>

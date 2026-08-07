@@ -8,6 +8,9 @@ import type {
   StoresResponse,
   ItemsResponse,
   CouponsResponse,
+  DealsResponse,
+  DealDetailResponse,
+  PriceObservationsResponse,
 } from '../types';
 
 // Use relative URL in development (Vite proxy handles it)
@@ -100,4 +103,49 @@ export async function healthCheck(): Promise<{
   features: Record<string, boolean>;
 }> {
   return fetchAPI('/health');
+}
+
+/**
+ * List deal events (mock fixture data)
+ */
+export async function getDeals(params?: {
+  zip_code?: string;
+  retailer?: string;
+  deal_type?: string;
+  product_id?: string;
+}): Promise<DealsResponse> {
+  const search = new URLSearchParams();
+  if (params?.zip_code) search.append('zip_code', params.zip_code);
+  if (params?.retailer) search.append('retailer', params.retailer);
+  if (params?.deal_type) search.append('deal_type', params.deal_type);
+  if (params?.product_id) search.append('product_id', params.product_id);
+  const query = search.toString();
+  return fetchAPI<DealsResponse>(`/api/deals${query ? `?${query}` : ''}`);
+}
+
+/**
+ * Get a single deal by ID
+ */
+export async function getDeal(dealId: string): Promise<DealDetailResponse> {
+  return fetchAPI<DealDetailResponse>(`/api/deals/${dealId}`);
+}
+
+/**
+ * List price observations (evidence layer)
+ */
+export async function getPriceObservations(params?: {
+  zip_code?: string;
+  retailer?: string;
+  product_id?: string;
+  evidence_type?: string;
+}): Promise<PriceObservationsResponse> {
+  const search = new URLSearchParams();
+  if (params?.zip_code) search.append('zip_code', params.zip_code);
+  if (params?.retailer) search.append('retailer', params.retailer);
+  if (params?.product_id) search.append('product_id', params.product_id);
+  if (params?.evidence_type) search.append('evidence_type', params.evidence_type);
+  const query = search.toString();
+  return fetchAPI<PriceObservationsResponse>(
+    `/api/price-observations${query ? `?${query}` : ''}`
+  );
 }

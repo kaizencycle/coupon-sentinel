@@ -120,6 +120,114 @@ export interface CouponsResponse {
 }
 
 // ============================================================================
+// Deal Intelligence Types (PR-1)
+// ============================================================================
+
+export type EvidenceType =
+  | 'retailer_public'
+  | 'receipt'
+  | 'weekly_ad'
+  | 'coupon_feed'
+  | 'rebate_feed'
+  | 'community_report'
+  | 'manual';
+
+export type ConfidenceLabel = 'LOW' | 'MEDIUM' | 'HIGH' | 'VERIFIED';
+
+export type DealType =
+  | 'sale'
+  | 'clearance'
+  | 'coupon'
+  | 'rebate'
+  | 'stack'
+  | 'discontinued'
+  | 'seasonal'
+  | 'markdown'
+  | 'penny_or_pull'
+  | 'price_anomaly'
+  | 'unknown';
+
+export interface DealEvent {
+  id: string;
+  product_id: string;
+  retailer: string;
+  store_id?: string;
+  zip_code?: string;
+  deal_type: DealType;
+  regular_price?: number;
+  current_price: number;
+  coupon_value: number;
+  rebate_value: number;
+  loyalty_savings: number;
+  effective_price: number;
+  savings_amount?: number;
+  savings_percentage?: number;
+  starts_at?: string;
+  expires_at?: string;
+  observed_at: string;
+  observation_ids: string[];
+  confidence: number;
+  inventory_confirmed: boolean;
+}
+
+export interface DealEventDetail extends DealEvent {
+  product_name: string;
+  product_brand?: string;
+  confidence_label: ConfidenceLabel;
+  evidence_types: EvidenceType[];
+  evidence_summary: string[];
+  observation_count: number;
+  receipt_verified: boolean;
+  is_mock_data: boolean;
+}
+
+export interface PriceObservation {
+  id: string;
+  product_id: string;
+  upc?: string;
+  retailer: string;
+  store_id?: string;
+  zip_code?: string;
+  observed_price: number;
+  regular_price?: number;
+  loyalty_price?: number;
+  observed_at: string;
+  evidence_type: EvidenceType;
+  source?: string;
+  confidence: number;
+  in_stock?: boolean;
+  documented_coupon_value?: number;
+  documented_rebate_value?: number;
+  documented_loyalty_savings?: number;
+}
+
+export interface PriceObservationDetail extends PriceObservation {
+  product_name?: string;
+  confidence_label: ConfidenceLabel;
+  is_mock_data: boolean;
+}
+
+export interface DealsResponse {
+  deals: DealEventDetail[];
+  count: number;
+  is_mock_data: boolean;
+  notice: string;
+}
+
+export interface DealDetailResponse {
+  deal: DealEventDetail;
+  is_mock_data: boolean;
+  notice: string;
+}
+
+export interface PriceObservationsResponse {
+  observations: PriceObservationDetail[];
+  count: number;
+  is_mock_data: boolean;
+  notice: string;
+}
+
+// ============================================================================
 // UI State Types
 // ============================================================================
 
