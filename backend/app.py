@@ -62,8 +62,21 @@ app.add_middleware(
 
 
 # ============================================================================
-# Health Check
+# Root & Health
 # ============================================================================
+
+@app.get("/")
+async def root():
+    """API index — browser-friendly entry when visiting the service URL."""
+    return {
+        "service": "Coupon Sentinel API",
+        "version": "0.1.0",
+        "status": "ok",
+        "health": "/health",
+        "docs": "/docs",
+        "ui": "https://coupon-sentinel.vercel.app",
+    }
+
 
 @app.get("/health")
 async def health_check():
