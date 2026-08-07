@@ -197,6 +197,15 @@ render logs -s coupon-sentinel-api
 
 ## Troubleshooting
 
+### Build fails: `No such file or directory: 'requirements.txt'`
+
+Render is running `pip install -r requirements.txt` from the **repo root**, but deps are under `backend/`. Fix either:
+
+1. **Dashboard → Build Command:** `pip install -r backend/requirements.txt` (Root Directory empty)
+2. **Or** use the repo root `requirements.txt` (includes `-r backend/requirements.txt`) with build command `pip install -r requirements.txt`
+
+After PR merge, both paths work from repo root.
+
 ### Backend won't start on Render
 
 - Check Python version (needs 3.10+)
