@@ -7,6 +7,8 @@ from pydantic import BaseModel, Field
 from typing import List, Optional
 from enum import Enum
 
+from backend.price_memory_models import OptimizedItemDealContext
+
 
 # ============================================================================
 # Enums
@@ -66,6 +68,10 @@ class StoreItem(BaseModel):
     upc: Optional[str] = None
     loyalty_price: Optional[float] = Field(None, description="Price with loyalty card")
     in_stock: bool = True
+    product_id: Optional[str] = Field(
+        None,
+        description="Bridged deal-intelligence ProductIdentity id (PR-3). Null when unmapped.",
+    )
 
     @property
     def unit_price(self) -> float:
@@ -147,3 +153,35 @@ class OptimizeResponse(BaseModel):
     unfulfilled_items: List[ShoppingItem] = Field(default_factory=list)
     action_steps: List[str] = Field(default_factory=list)
     rebate_opportunities: List[RebateOpportunity] = Field(default_factory=list)
+
+
+class OptimizedItemWithDealContext(OptimizedItem):
+    """OptimizedItem plus optional local price-memory context."""
+
+    deal_context: Optional[OptimizedItemDealContext] = None
+
+
+class StorePlanWithDealContext(BaseModel):
+    """Store plan with optional per-item deal context (PR-3)."""
+
+    store_name: str
+    items: List[OptimizedItemWithDealContext]
+    subtotal: float
+    store_level_discounts: List[AppliedCoupon] = Field(default_factory=list)
+    final_total: float
+    estimated_savings: float
+
+
+class OptimizeWithDealContextResponse(BaseModel):
+    """OptimizeResponse shape plus deal_context on each optimized item."""
+
+    plans: List[StorePlanWithDealContext]
+    grand_total: float
+    total_base_cost: float
+    total_savings: float
+    savings_percentage: float
+    unfulfilled_items: List[ShoppingItem] = Field(default_factory=list)
+    action_steps: List[str] = Field(default_factory=list)
+    rebate_opportunities: List[RebateOpportunity] = Field(default_factory=list)
+    is_mock_data: bool = True
+    notice: Optional[str] = None

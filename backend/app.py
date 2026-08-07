@@ -11,8 +11,16 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List, Optional
 
-from .models import OptimizeRequest, OptimizeResponse, ShoppingItem
+from .models import (
+    OptimizeRequest,
+    OptimizeResponse,
+    OptimizeWithDealContextResponse,
+    OptimizedItemWithDealContext,
+    ShoppingItem,
+    StorePlanWithDealContext,
+)
 from .engines import optimize_shopping_list
+from .engines.deal_context_engine import attach_deal_context, build_anomalies_by_product_id
 from .engines.deal_engine import enrich_deal_event, enrich_price_observation
 from .engines.price_memory_engine import (
     build_price_anomaly,
@@ -95,6 +103,64 @@ async def optimize(request: OptimizeRequest):
     result = optimize_shopping_list(request, store_items, coupons)
     
     return result
+
+
+@app.post("/api/optimize/with-deal-context", response_model=OptimizeWithDealContextResponse)
+async def optimize_with_deal_context(request: OptimizeRequest):
+    """
+    Optimize a shopping list and attach optional local deal context per item.
+
+    Separate from POST /api/optimize — existing optimize response shape is unchanged.
+    deal_context is null when no product_id bridge or no matching market anomaly.
+    """
+    if not request.shopping_list:
+        raise HTTPException(status_code=400, detail="Shopping list cannot be empty")
+
+    store_items = get_mock_store_items()
+    coupons = get_mock_coupons()
+    result = optimize_shopping_list(request, store_items, coupons)
+
+    # Single pass: group observations and build anomaly lookup once per request.
+    anomalies_by_product_id = build_anomalies_by_product_id(get_mock_price_observations())
+
+    plans_with_context: List[StorePlanWithDealContext] = []
+    for plan in result.plans:
+        items_with_context: List[OptimizedItemWithDealContext] = []
+        for item in plan.items:
+            deal_context = attach_deal_context(
+                item,
+                anomalies_by_product_id,
+                zip_code=request.zip_code,
+            )
+            items_with_context.append(
+                OptimizedItemWithDealContext(
+                    **item.model_dump(),
+                    deal_context=deal_context,
+                )
+            )
+        plans_with_context.append(
+            StorePlanWithDealContext(
+                store_name=plan.store_name,
+                items=items_with_context,
+                subtotal=plan.subtotal,
+                store_level_discounts=plan.store_level_discounts,
+                final_total=plan.final_total,
+                estimated_savings=plan.estimated_savings,
+            )
+        )
+
+    return OptimizeWithDealContextResponse(
+        plans=plans_with_context,
+        grand_total=result.grand_total,
+        total_base_cost=result.total_base_cost,
+        total_savings=result.total_savings,
+        savings_percentage=result.savings_percentage,
+        unfulfilled_items=result.unfulfilled_items,
+        action_steps=result.action_steps,
+        rebate_opportunities=result.rebate_opportunities,
+        is_mock_data=True,
+        notice=MOCK_DATA_NOTICE,
+    )
 
 
 # ============================================================================
