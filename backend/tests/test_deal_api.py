@@ -8,6 +8,14 @@ client = TestClient(app)
 
 
 class TestDealAPI:
+    def test_root_returns_api_index(self):
+        response = client.get("/")
+        assert response.status_code == 200
+        data = response.json()
+        assert data["service"] == "Coupon Sentinel API"
+        assert data["health"] == "/health"
+        assert data["docs"] == "/docs"
+
     def test_list_deals(self):
         response = client.get("/api/deals")
         assert response.status_code == 200
