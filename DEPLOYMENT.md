@@ -87,7 +87,7 @@ If the dashboard only lists old branches:
 2. **Settings → General → Root Directory** → leave **empty** (repo root; `vercel.json` builds `frontend/`) **or** set `frontend` (uses `frontend/vercel.json`).
 3. **Deployments → Create Deployment** → Branch **`main`** → Deploy (not Redeploy of an old ID).
 
-**GitHub Actions** (after PR #20): add secrets `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`. Check **Actions** tab — failed runs mean secrets are missing or CLI version was wrong.
+**GitHub Actions** (after PR #20): add secrets `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`. The workflow runs from **repo root** and uses root `vercel.json` (same as Vercel Git when Root Directory is empty). Check **Actions** tab — failed runs mean secrets are missing.
 
 **CLI one-off deploy:**
 
