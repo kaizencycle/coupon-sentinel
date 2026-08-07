@@ -201,7 +201,16 @@ def build_deal_from_observations(
     expires_at: Optional[datetime] = None,
     inventory_confirmed: bool = False,
 ) -> DealEvent:
-    """Build a DealEvent from observations with deterministic pricing."""
+    """Build a DealEvent from observations with deterministic pricing.
+
+    Requires at least one observation — deals must trace to evidence.
+    """
+    if not observations:
+        raise ValueError(
+            "build_deal_from_observations requires at least one PriceObservation; "
+            "deals must trace to evidence."
+        )
+
     effective = calculate_effective_price(
         current_price,
         coupon_value=coupon_value,
