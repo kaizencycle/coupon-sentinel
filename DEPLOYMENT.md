@@ -79,14 +79,17 @@ Production URL (if linked to this repo): [https://coupon-sentinel.vercel.app](ht
 
 ### Vercel stuck on an old PR branch (e.g. PR #10 / December 2025)
 
-If the dashboard only lets you deploy `cursor/backend-module-import-error-b457` (or another old branch) instead of `main`:
+**Do not use "Redeploy" on an old Production row** (e.g. merge PR #10 / `d2fea3a` from 12/17/25). That re-runs the *old* build config and often fails. Production is still serving that December build until you deploy **current `main`**.
 
-1. **Settings → Git → Production Branch** → set to `main` (type it if missing from the dropdown).
-2. If `main` never appears: **Disconnect** the Git repo, **Reconnect** `kaizencycle/coupon-sentinel`, choose **Production Branch: `main`** during setup.
-3. **Settings → General → Root Directory** → `frontend`.
-4. **Deployments → Create Deployment** → Branch: `main` → Deploy.
+If the dashboard only lists old branches:
 
-**Fastest one-off fix (CLI, from your machine):**
+1. **Settings → Git → Production Branch** → `main` (reconnect Git if `main` is missing).
+2. **Settings → General → Root Directory** → leave **empty** (repo root; `vercel.json` builds `frontend/`) **or** set `frontend` (uses `frontend/vercel.json`).
+3. **Deployments → Create Deployment** → Branch **`main`** → Deploy (not Redeploy of an old ID).
+
+**GitHub Actions** (after PR #20): add secrets `VERCEL_TOKEN`, `VERCEL_ORG_ID`, `VERCEL_PROJECT_ID`. The workflow runs from **repo root** and uses root `vercel.json` (same as Vercel Git when Root Directory is empty). Check **Actions** tab — failed runs mean secrets are missing.
+
+**CLI one-off deploy:**
 
 ```bash
 git checkout main
