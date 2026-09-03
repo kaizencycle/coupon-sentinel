@@ -4,6 +4,31 @@
 version: '3.8'
 
 services:
+  # PostgreSQL database
+  db:
+    image: postgres:16-alpine
+    environment:
+      - POSTGRES_USER=coupon_sentinel
+      - POSTGRES_PASSWORD=coupon_sentinel
+      - POSTGRES_DB=coupon_sentinel
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U coupon_sentinel"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Redis cache (reserved for Milestone 2+ price caching — not yet read by the app)
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+
   # Backend API
   backend:
     build:
@@ -14,6 +39,16 @@ services:
     environment:
       - ENVIRONMENT=production
       - LOG_LEVEL=INFO
+      - DATABASE_URL=postgresql://coupon_sentinel:coupon_sentinel@db:5432/coupon_sentinel
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=${JWT_SECRET:-dev-only-change-me}
+      - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
+      - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
+      - STRIPE_PRICE_ID_PRO=${STRIPE_PRICE_ID_PRO:-}
+      - STRIPE_PRICE_ID_PREMIUM=${STRIPE_PRICE_ID_PREMIUM:-}
+    depends_on:
+      db:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -36,6 +71,5 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-# Optional: Add volumes for persistence
-# volumes:
-#   postgres_data:
+volumes:
+  postgres_data:

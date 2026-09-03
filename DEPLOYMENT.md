@@ -164,6 +164,28 @@ docker-compose up --build
 | `PORT` | Yes | `8000` | Server port (set by platform) |
 | `ENVIRONMENT` | No | `development` | `development` or `production` |
 | `LOG_LEVEL` | No | `INFO` | Logging level |
+| `DATABASE_URL` | Yes (prod) | local SQLite file | Postgres connection string. `render.yaml` wires this from the managed `coupon-sentinel-db` database automatically. |
+| `JWT_SECRET` | Yes (prod) | random per-process | Signs access/refresh tokens. `render.yaml` auto-generates one; without it, every restart invalidates all sessions. |
+| `STRIPE_SECRET_KEY` | For billing | — | Real key from Michael. Without it, `/api/user/subscription` and the webhook return `503`. |
+| `STRIPE_WEBHOOK_SECRET` | For billing | — | From the Stripe Dashboard webhook endpoint config. |
+| `STRIPE_PRICE_ID_PRO` / `STRIPE_PRICE_ID_PREMIUM` | For billing | — | Stripe recurring Price IDs for the Pro/Premium tiers. |
+
+See `.env.example` (repo root) for the complete list, including vars reserved
+for later milestones (Kroger, SendGrid/Resend, Mixpanel, Sentry) that aren't
+read by the app yet.
+
+### Database migrations (Alembic)
+
+The app auto-creates tables on startup if they don't exist (convenient for
+local SQLite), but production deploys should run migrations explicitly so
+schema changes are tracked and reviewable:
+
+```bash
+cd backend
+alembic upgrade head
+```
+
+`render.yaml`'s build command runs this automatically after `pip install`.
 
 ### Frontend
 

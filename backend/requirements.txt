@@ -10,6 +10,21 @@ pydantic>=2.5.0
 # HTTP client (for future API integrations)
 httpx>=0.25.0
 
+# Database (Milestone 1: real persistence for users/subscriptions/evidence)
+sqlalchemy>=2.0.25
+alembic>=1.13.1
+psycopg2-binary>=2.9.9
+
+# Auth
+python-jose[cryptography]>=3.3.0
+passlib[bcrypt]>=1.7.4
+bcrypt>=4.0.1,<4.1  # passlib 1.7.4 reads bcrypt.__about__, removed in bcrypt>=4.1
+python-multipart>=0.0.9
+email-validator>=2.1.0
+
+# Billing
+stripe>=8.0.0
+
 # Development
 python-dotenv>=1.0.0
 

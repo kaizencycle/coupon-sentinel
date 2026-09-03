@@ -1,3 +1,10 @@
+databases:
+  # Managed Postgres for Milestone 1 persistence (users, subscriptions, evidence layer).
+  - name: coupon-sentinel-db
+    plan: free
+    databaseName: coupon_sentinel
+    user: coupon_sentinel
+
 services:
   # Backend API Service
   - type: web
@@ -5,7 +12,7 @@ services:
     runtime: python
     plan: free
     rootDir: .
-    buildCommand: pip install -r backend/requirements.txt
+    buildCommand: pip install -r backend/requirements.txt && cd backend && alembic upgrade head
     # Use backend/run.py — sets sys.path before importing backend (avoids ModuleNotFoundError)
     startCommand: python3 backend/run.py
     envVars:
@@ -17,6 +24,20 @@ services:
         value: INFO
       - key: PYTHONPATH
         value: .
+      - key: DATABASE_URL
+        fromDatabase:
+          name: coupon-sentinel-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: STRIPE_SECRET_KEY
+        sync: false  # Set manually in Render dashboard — real key, never in git
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: STRIPE_PRICE_ID_PRO
+        sync: false
+      - key: STRIPE_PRICE_ID_PREMIUM
+        sync: false
     healthCheckPath: /health
     autoDeploy: true
 
