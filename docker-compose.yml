@@ -41,11 +41,14 @@ services:
       - LOG_LEVEL=INFO
       - DATABASE_URL=postgresql://coupon_sentinel:coupon_sentinel@db:5432/coupon_sentinel
       - REDIS_URL=redis://redis:6379
-      - JWT_SECRET=${JWT_SECRET:-dev-only-change-me}
+      - JWT_SECRET=${JWT_SECRET:?Set JWT_SECRET in your environment or a .env file next to docker-compose.yml — e.g. JWT_SECRET=$(openssl rand -base64 32)}
       - STRIPE_SECRET_KEY=${STRIPE_SECRET_KEY:-}
       - STRIPE_WEBHOOK_SECRET=${STRIPE_WEBHOOK_SECRET:-}
       - STRIPE_PRICE_ID_PRO=${STRIPE_PRICE_ID_PRO:-}
       - STRIPE_PRICE_ID_PREMIUM=${STRIPE_PRICE_ID_PREMIUM:-}
+      - KROGER_CLIENT_ID=${KROGER_CLIENT_ID:-}
+      - KROGER_CLIENT_SECRET=${KROGER_CLIENT_SECRET:-}
+      - KROGER_BASE_URL=${KROGER_BASE_URL:-}
     depends_on:
       db:
         condition: service_healthy

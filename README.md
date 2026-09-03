@@ -54,7 +54,11 @@ Total: $10.53 (saved $3.42 vs full price)
 git clone https://github.com/kaizencycle/coupon-sentinel.git
 cd coupon-sentinel
 
-# Start both frontend and backend
+# docker-compose requires JWT_SECRET (no insecure default — see .env.example)
+cp .env.example .env
+echo "JWT_SECRET=$(openssl rand -base64 32)" >> .env
+
+# Start frontend, backend, Postgres, and Redis
 docker-compose up --build
 
 # Open http://localhost:3000
@@ -258,8 +262,14 @@ which is untouched:
 - [x] Tier gating dependency (`backend/auth.py:require_tier`) ready for endpoints that should require Pro/Premium
 - [x] Unit tests for auth + subscription flows (`backend/tests/test_auth.py`, `backend/tests/test_subscription_api.py`), CI running the full suite on every PR (`.github/workflows/backend-ci.yml`)
 
-**Not yet built** (needs real accounts/credentials + further sessions, roughly Milestones 2-7 of the phase-1 plan):
-Kroger API integration, deal-inference engine wired to live data, email verification, frontend auth/billing/dashboard pages, Mixpanel/Sentry, and production deployment of this new surface. The mock-data optimizer (`/api/optimize`, `/api/deals`, etc.) and its frontend remain fully functional and are not gated by auth.
+Milestone 2 (Kroger Integration) is partially implemented:
+
+- [x] Kroger OAuth2 client-credentials client, product search, price lookup, sliding-window rate limiter (`backend/providers/kroger.py`) — unit-tested against a mocked HTTP transport (`backend/tests/test_kroger_client.py`); **not yet verified against Kroger's live API, since no `KROGER_CLIENT_ID`/`KROGER_CLIENT_SECRET` exist for this project**
+- [x] `GET /api/kroger/search`, `GET /api/kroger/products/{id}` — persist results as `price_observations` rows with `source=kroger_api` (`backend/kroger_routes.py`, `backend/engines/kroger_price_engine.py`); return `503` until credentials are set, by design
+- [ ] Not done: wiring Kroger data into `/api/optimize` (the mock-data optimizer is untouched), store-location lookup, digital coupon endpoint, frontend store selector using real data
+
+**Not yet built** (needs real accounts/credentials + further sessions, roughly Milestones 3-7 of the phase-1 plan):
+deal-inference engine wired to live data, email verification, frontend auth/billing/dashboard pages, Mixpanel/Sentry, and production deployment of this new surface. The mock-data optimizer (`/api/optimize`, `/api/deals`, etc.) and its frontend remain fully functional and are not gated by auth.
 
 ### V1 (Roadmap)
 - [ ] Real store API integrations (public data only)

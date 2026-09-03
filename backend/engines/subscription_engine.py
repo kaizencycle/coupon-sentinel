@@ -28,6 +28,11 @@ _TIER_PRICE_ENV_VAR = {
     "premium": "STRIPE_PRICE_ID_PREMIUM",
 }
 
+# Local subscription states that mean "this user already has a subscription in
+# flight or active" — a second create_subscription() call must not start a
+# second Stripe subscription while one of these exists.
+_OPEN_SUBSCRIPTION_STATUSES = {"active", "incomplete", "trialing", "past_due"}
+
 # Tier feature matrix — mirrors the Phase 1 handoff spec. Static/no DB lookup
 # needed since these are product decisions, not per-user data.
 PLAN_CATALOG = {
@@ -112,13 +117,38 @@ def create_subscription(user: User, tier: str, db: Session) -> dict:
             detail=f"{price_env_var} is not configured",
         )
 
+    existing = (
+        db.query(Subscription)
+        .filter(Subscription.user_id == user.id, Subscription.status.in_(_OPEN_SUBSCRIPTION_STATUSES))
+        .order_by(Subscription.id.desc())
+        .first()
+    )
+    if existing is not None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"User already has a {existing.status} subscription "
+                f"(id={existing.stripe_subscription_id}, tier={existing.tier}). "
+                "Cancel it before creating a new one."
+            ),
+        )
+
     customer_id = get_or_create_stripe_customer(user, db)
+
+    # Idempotency key scoped to (user, tier, how many subscriptions this user
+    # has had before): a retried request for the *same* attempt (timeout,
+    # double-click) reuses the key and Stripe returns the same subscription
+    # instead of creating a second one; a genuinely new attempt after a prior
+    # subscription was resolved (canceled, etc.) gets a fresh key.
+    attempt_count = db.query(Subscription).filter(Subscription.user_id == user.id).count()
+    idempotency_key = f"create-sub-user{user.id}-{tier}-attempt{attempt_count}"
 
     stripe_subscription = stripe.Subscription.create(
         customer=customer_id,
         items=[{"price": price_id}],
         payment_behavior="default_incomplete",
         expand=["latest_invoice.payment_intent"],
+        idempotency_key=idempotency_key,
     )
 
     record = Subscription(
@@ -142,9 +172,12 @@ def cancel_subscription(user: User, db: Session) -> Subscription:
     """Cancel the user's active Stripe subscription and downgrade to free."""
     _require_stripe()
 
+    # Same open-status set create_subscription() blocks on — otherwise a user
+    # stuck in e.g. "incomplete" (abandoned checkout) or "past_due" could
+    # neither create a new subscription nor cancel the one blocking them.
     record = (
         db.query(Subscription)
-        .filter(Subscription.user_id == user.id, Subscription.status == "active")
+        .filter(Subscription.user_id == user.id, Subscription.status.in_(_OPEN_SUBSCRIPTION_STATUSES))
         .order_by(Subscription.id.desc())
         .first()
     )
