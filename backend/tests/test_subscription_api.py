@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi import HTTPException
 
-from backend.db_models import Subscription, User
+from backend.db_models import AnalyticsEvent, Subscription, User
 from backend.engines import subscription_engine
 
 
@@ -132,6 +132,10 @@ class TestSubscriptionEngineWithMockedStripe:
         assert record is not None
         assert record.tier == "pro"
         assert record.status == "incomplete"
+
+        event = db.query(AnalyticsEvent).filter_by(event_type="subscribe").one()
+        assert event.user_id == user.id
+        assert event.event_data == {"tier": "pro"}
         db.close()
 
     def test_create_subscription_rejects_when_already_subscribed(self, db_client, monkeypatch):
@@ -185,6 +189,10 @@ class TestSubscriptionEngineWithMockedStripe:
 
         assert record.status == "canceled"
         assert user.tier == "free"
+
+        event = db.query(AnalyticsEvent).filter_by(event_type="cancel_subscription").one()
+        assert event.user_id == user.id
+        assert event.event_data == {"tier": "pro"}
         db.close()
 
     def test_webhook_subscription_deleted_downgrades_user_to_free(self, db_client, monkeypatch):
