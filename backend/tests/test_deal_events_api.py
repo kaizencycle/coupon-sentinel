@@ -44,6 +44,23 @@ class TestInferDealEvents:
         assert response.status_code == 200
         assert response.json() == {"deals": [], "count": 0, "observations_considered": 0}
 
+    def test_infer_is_idempotent_across_repeated_calls(self, db_client):
+        """Retrying /infer (or polling it periodically) with no new
+        observations must not grow the deal_events table — see the Codex
+        finding on PR #24 about unbounded duplicate rows."""
+        client, session_factory = db_client
+        db = session_factory()
+        _seed_observation(db, "paper-towels-12ct", "s1", 4.00, days_ago=10)
+        _seed_observation(db, "paper-towels-12ct", "s1", 4.00, days_ago=5)
+        _seed_observation(db, "paper-towels-12ct", "s1", 3.00, days_ago=0)
+        db.close()
+
+        first = client.post("/api/deal-events/infer").json()
+        second = client.post("/api/deal-events/infer").json()
+
+        assert first["deals"][0]["id"] == second["deals"][0]["id"]
+        assert client.get("/api/deal-events").json()["count"] == 1
+
     def test_infer_scoped_to_product_id(self, db_client):
         client, session_factory = db_client
         db = session_factory()

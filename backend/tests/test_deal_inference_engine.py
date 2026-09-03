@@ -59,7 +59,10 @@ class TestInferPriceDropDeals:
         assert deal["deal_type"] == "price_drop"
         assert deal["effective_price"] == 3.00
         assert deal["savings_amount"] == 1.00
-        assert deal["evidence_ids"] == [3]
+        # Evidence includes the baseline observations (1, 2), not just the
+        # latest (3) — a consumer needs to see what the median was computed
+        # from to verify the claimed drop, not just the new price.
+        assert deal["evidence_ids"] == [1, 2, 3]
 
     def test_ignores_minor_fluctuation_below_threshold(self):
         observations = [
@@ -88,7 +91,15 @@ class TestInferPriceDropDeals:
 
 
 class TestInferCouponDeals:
-    def _coupon(self, item_filter="milk", value=0.50, discount_type=DiscountType.AMOUNT_OFF, store_scope="any"):
+    def _coupon(
+        self,
+        item_filter="milk",
+        value=0.50,
+        discount_type=DiscountType.AMOUNT_OFF,
+        store_scope="any",
+        brand_filter=None,
+        min_quantity=1,
+    ):
         return Coupon(
             id=f"c-{item_filter}",
             coupon_type=CouponType.MANUFACTURER,
@@ -96,7 +107,9 @@ class TestInferCouponDeals:
             store_scope=store_scope,
             description="test coupon",
             item_filter=item_filter,
+            brand_filter=brand_filter,
             value=value,
+            min_quantity=min_quantity,
         )
 
     def test_matches_and_applies_amount_off(self):
@@ -123,6 +136,29 @@ class TestInferCouponDeals:
         grouped = group_observations(observations)
         deals = infer_coupon_deals(grouped, [self._coupon(item_filter="milk")])
         assert deals == []
+
+    def test_skips_coupon_requiring_multiple_units(self):
+        """A price observation has no purchase-quantity context — a coupon
+        requiring buying 2+ can't be verified as satisfied, so it must not
+        be applied as if it were."""
+        observations = [_obs(obs_id=1, product_id="generic-pasta", price=2.00)]
+        grouped = group_observations(observations)
+        coupon = self._coupon(item_filter="pasta", value=0.75, min_quantity=2)
+        assert infer_coupon_deals(grouped, [coupon]) == []
+
+    def test_skips_coupon_with_unmatched_brand(self):
+        observations = [_obs(obs_id=1, product_id="generic-pasta", price=2.00)]
+        grouped = group_observations(observations)
+        coupon = self._coupon(item_filter="pasta", value=0.75, brand_filter="Barilla")
+        assert infer_coupon_deals(grouped, [coupon]) == []
+
+    def test_applies_coupon_when_brand_matches(self):
+        observations = [_obs(obs_id=1, product_id="barilla-pasta-1lb", price=2.00)]
+        grouped = group_observations(observations)
+        coupon = self._coupon(item_filter="pasta", value=0.75, brand_filter="Barilla")
+        deals = infer_coupon_deals(grouped, [coupon])
+        assert len(deals) == 1
+        assert deals[0]["savings_amount"] == 0.75
 
     def test_store_scoped_coupon_respects_scope(self):
         observations = [_obs(obs_id=1, product_id="milk-gallon", store_id="target-01", price=4.00)]

@@ -51,6 +51,14 @@ def group_observations(observations: list[PriceObservationRecord]) -> dict[Group
     return dict(grouped)
 
 
+def _split_latest(
+    observations: list[PriceObservationRecord],
+) -> tuple[list[PriceObservationRecord], PriceObservationRecord]:
+    """Sort by timestamp; return (all-but-last, last)."""
+    ordered = sorted(observations, key=lambda o: o.timestamp)
+    return ordered[:-1], ordered[-1]
+
+
 def compute_baseline_price(observations: list[PriceObservationRecord]) -> Optional[float]:
     """
     Median of all observations *except* the most recent one, so the baseline
@@ -61,8 +69,7 @@ def compute_baseline_price(observations: list[PriceObservationRecord]) -> Option
     if len(observations) < MIN_OBSERVATIONS_FOR_BASELINE:
         return None
 
-    ordered = sorted(observations, key=lambda o: o.timestamp)
-    prior = ordered[:-1]
+    prior, _latest = _split_latest(observations)
     prices = sorted(float(o.price) for o in prior)
 
     mid = len(prices) // 2
@@ -79,7 +86,7 @@ def infer_price_drop_deals(grouped_observations: dict[GroupKey, list[PriceObserv
         if baseline is None or baseline <= 0:
             continue
 
-        latest = max(observations, key=lambda o: o.timestamp)
+        prior, latest = _split_latest(observations)
         latest_price = float(latest.price)
         drop_pct = (baseline - latest_price) / baseline * 100
 
@@ -91,7 +98,11 @@ def infer_price_drop_deals(grouped_observations: dict[GroupKey, list[PriceObserv
                     "deal_type": "price_drop",
                     "effective_price": round(latest_price, 2),
                     "savings_amount": round(baseline - latest_price, 2),
-                    "evidence_ids": [latest.id],
+                    # The baseline observations are evidence for the claimed
+                    # drop just as much as the latest one is — a consumer
+                    # verifying "why is this a deal?" needs to see the prices
+                    # the median was computed from, not just the new price.
+                    "evidence_ids": [o.id for o in prior] + [latest.id],
                 }
             )
     return deals
@@ -104,13 +115,24 @@ def _matching_coupons(product_id: str, store_id: str, coupons: list[Coupon]) -> 
     match here — it isn't a per-item price reduction, so surfacing it as a
     "deal" on every single product observed would be noise, not signal.
     Only store_scope == "any" (any store) is a real wildcard.
+
+    A price observation carries no purchase-quantity or verified-brand
+    context beyond product_id, so a coupon whose eligibility can't be
+    established from that alone (min_quantity > 1, or a brand_filter not
+    reflected in product_id) is skipped rather than assumed satisfied —
+    applying it anyway would produce an unattainable effective price.
     """
     matches = []
     for coupon in coupons:
         if coupon.store_scope and coupon.store_scope.lower() not in ("any", store_id.lower()):
             continue
-        if coupon.item_filter.lower() in product_id.lower():
-            matches.append(coupon)
+        if coupon.min_quantity > 1:
+            continue
+        if coupon.item_filter.lower() not in product_id.lower():
+            continue
+        if coupon.brand_filter and coupon.brand_filter.lower() not in product_id.lower():
+            continue
+        matches.append(coupon)
     return matches
 
 
@@ -161,9 +183,36 @@ def infer_deals(observations: list[PriceObservationRecord], coupons: list[Coupon
 
 
 def persist_deals(deals: list[dict], db: Session) -> list[DealEventRecord]:
-    """Materialize inferred deal dicts as DealEventRecord rows."""
-    records = []
+    """
+    Materialize inferred deal dicts as DealEventRecord rows.
+
+    Idempotent: a deal with the same (product_id, store_id, deal_type,
+    evidence_ids) as an already-persisted row returns that existing row
+    instead of inserting a duplicate. Without this, calling /infer again
+    with no new observations — a retry, or periodic polling — would insert
+    an indistinguishable duplicate every time and grow the table forever.
+    """
+    results = []
+    new_records = []
+
     for deal in deals:
+        candidates = (
+            db.query(DealEventRecord)
+            .filter(
+                DealEventRecord.product_id == deal["product_id"],
+                DealEventRecord.store_id == deal["store_id"],
+                DealEventRecord.deal_type == deal["deal_type"],
+            )
+            .all()
+        )
+        existing = next(
+            (c for c in candidates if sorted(c.evidence_ids) == sorted(deal["evidence_ids"])),
+            None,
+        )
+        if existing is not None:
+            results.append(existing)
+            continue
+
         record = DealEventRecord(
             product_id=deal["product_id"],
             store_id=deal["store_id"],
@@ -173,11 +222,12 @@ def persist_deals(deals: list[dict], db: Session) -> list[DealEventRecord]:
             evidence_ids=deal["evidence_ids"],
         )
         db.add(record)
-        records.append(record)
+        new_records.append(record)
+        results.append(record)
 
-    if records:
+    if new_records:
         db.commit()
-        for record in records:
+        for record in new_records:
             db.refresh(record)
 
-    return records
+    return results
