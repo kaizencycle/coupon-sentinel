@@ -416,6 +416,17 @@
   letter-spacing: 0.02em;
 }
 
+.info-message {
+  background: var(--stamp-blue-bg);
+  color: var(--stamp-blue);
+  border: 2px dashed var(--stamp-blue);
+  padding: 0.85rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  margin-bottom: 1rem;
+}
+
 /* ── Savings summary + stamp badges ──────────────────────────────────────── */
 
 .savings-summary {

@@ -16,6 +16,7 @@ import type {
   PlansResponse,
   CreateSubscriptionResponse,
   CancelSubscriptionResponse,
+  SubscriptionStatus,
   ApiErrorBody,
 } from '../types';
 
@@ -236,6 +237,12 @@ export async function createSubscription(
 export async function cancelSubscription(accessToken: string): Promise<CancelSubscriptionResponse> {
   return fetchAPI<CancelSubscriptionResponse>('/api/user/subscription', {
     method: 'DELETE',
+    headers: authHeaders(accessToken),
+  });
+}
+
+export async function getSubscriptionStatus(accessToken: string): Promise<SubscriptionStatus> {
+  return fetchAPI<SubscriptionStatus>('/api/user/subscription', {
     headers: authHeaders(accessToken),
   });
 }

@@ -274,6 +274,11 @@ export interface CancelSubscriptionResponse {
   tier: string;
 }
 
+export interface SubscriptionStatus {
+  status: string | null;
+  tier: string | null;
+}
+
 export interface ApiErrorBody {
   detail?: string;
 }

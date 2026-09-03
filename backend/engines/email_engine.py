@@ -18,7 +18,14 @@ from fastapi import HTTPException, status
 
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY")
 SENDGRID_API_KEY = os.environ.get("SENDGRID_API_KEY")
-EMAIL_FROM = os.environ.get("EMAIL_FROM", "onboarding@resend.dev")
+# No cross-provider default: Resend's sandbox address (onboarding@resend.dev)
+# is only valid *at Resend* — a SendGrid account can't authenticate mail
+# claiming to be from a domain/address it doesn't own, so applying that same
+# default when SendGrid is the active provider would make every SendGrid
+# send fail. Resend gets its own safe-by-default sandbox sender; SendGrid
+# requires EMAIL_FROM to be set explicitly to a verified sender.
+EMAIL_FROM = os.environ.get("EMAIL_FROM")
+_RESEND_SANDBOX_FROM = "onboarding@resend.dev"
 
 
 def email_provider_configured() -> bool:
@@ -37,10 +44,11 @@ def send_email(to: str, subject: str, html: str) -> dict:
 
 
 def _send_via_resend(to: str, subject: str, html: str) -> dict:
+    sender = EMAIL_FROM or _RESEND_SANDBOX_FROM
     response = httpx.post(
         "https://api.resend.com/emails",
         headers={"Authorization": f"Bearer {RESEND_API_KEY}"},
-        json={"from": EMAIL_FROM, "to": [to], "subject": subject, "html": html},
+        json={"from": sender, "to": [to], "subject": subject, "html": html},
         timeout=10.0,
     )
     response.raise_for_status()
@@ -48,6 +56,11 @@ def _send_via_resend(to: str, subject: str, html: str) -> dict:
 
 
 def _send_via_sendgrid(to: str, subject: str, html: str) -> dict:
+    if not EMAIL_FROM:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="EMAIL_FROM must be set to a SendGrid-verified sender address to send via SendGrid",
+        )
     response = httpx.post(
         "https://api.sendgrid.com/v3/mail/send",
         headers={"Authorization": f"Bearer {SENDGRID_API_KEY}"},
