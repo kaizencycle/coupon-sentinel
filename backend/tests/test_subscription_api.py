@@ -2,6 +2,9 @@
 
 from unittest.mock import MagicMock
 
+import pytest
+from fastapi import HTTPException
+
 from backend.db_models import Subscription, User
 from backend.engines import subscription_engine
 
@@ -81,18 +84,52 @@ class TestSubscriptionEngineWithMockedStripe:
         fake_subscription = MagicMock(id="sub_123", status="incomplete", latest_invoice=fake_invoice)
 
         monkeypatch.setattr(subscription_engine.stripe.Customer, "create", lambda **kw: fake_customer)
-        monkeypatch.setattr(subscription_engine.stripe.Subscription, "create", lambda **kw: fake_subscription)
+        captured_kwargs = {}
+
+        def _fake_subscription_create(**kw):
+            captured_kwargs.update(kw)
+            return fake_subscription
+
+        monkeypatch.setattr(subscription_engine.stripe.Subscription, "create", _fake_subscription_create)
 
         result = subscription_engine.create_subscription(user, "pro", db)
 
         assert result["subscription_id"] == "sub_123"
         assert result["client_secret"] == "secret_abc"
         assert user.stripe_customer_id == "cus_123"
+        assert captured_kwargs["idempotency_key"]  # sent so retries can't double-create in Stripe
 
         record = db.query(Subscription).filter_by(user_id=user.id).first()
         assert record is not None
         assert record.tier == "pro"
         assert record.status == "incomplete"
+        db.close()
+
+    def test_create_subscription_rejects_when_already_subscribed(self, db_client, monkeypatch):
+        _, session_factory = db_client
+        db = session_factory()
+        user = User(email="dupe@example.com", password_hash="x", stripe_customer_id="cus_existing")
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        db.add(Subscription(user_id=user.id, tier="pro", stripe_subscription_id="sub_existing", status="active"))
+        db.commit()
+
+        monkeypatch.setattr(subscription_engine, "STRIPE_SECRET_KEY", "sk_test_fake")
+        monkeypatch.setenv("STRIPE_PRICE_ID_PRO", "price_test_pro")
+
+        create_calls = []
+        monkeypatch.setattr(
+            subscription_engine.stripe.Subscription,
+            "create",
+            lambda **kw: create_calls.append(kw),
+        )
+
+        with pytest.raises(HTTPException) as exc_info:
+            subscription_engine.create_subscription(user, "pro", db)
+
+        assert exc_info.value.status_code == 409
+        assert create_calls == []  # never called Stripe once a duplicate was detected
         db.close()
 
     def test_webhook_subscription_deleted_downgrades_user_to_free(self, db_client, monkeypatch):
