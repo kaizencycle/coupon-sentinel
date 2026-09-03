@@ -171,19 +171,20 @@ docker-compose up --build
 | `STRIPE_PRICE_ID_PRO` / `STRIPE_PRICE_ID_PREMIUM` | For billing | — | Stripe recurring Price IDs for the Pro/Premium tiers. |
 | `RESEND_API_KEY` | For email | — | Checked first. Without it (or `SENDGRID_API_KEY`), `/api/auth/resend-verification` returns `503`. |
 | `SENDGRID_API_KEY` | For email | — | Fallback if `RESEND_API_KEY` is unset. |
-| `EMAIL_FROM` | No | `onboarding@resend.dev` | Sender address for verification emails. |
+| `EMAIL_FROM` | For SendGrid | Resend's `onboarding@resend.dev` if using Resend | Sender address. **Required** if SendGrid is the active provider — Resend's default won't authenticate there, so sending returns `503` instead of silently failing at SendGrid. |
 | `FRONTEND_URL` | No | `http://localhost:5173` | Base URL the verification link points to. Set to the real frontend URL in production. |
 | `KROGER_CLIENT_ID` / `KROGER_CLIENT_SECRET` | For Kroger | — | From https://developer.kroger.com. Without them, `/api/kroger/*` returns `503`. |
+| `MIXPANEL_TOKEN` | No | — | Best-effort event forwarding on top of the always-on local `analytics_events` table. Missing it doesn't disable analytics, just the Mixpanel copy. |
+| `SENTRY_DSN` | No | — | Backend error tracking. A no-op without it — no errors are silently dropped that wouldn't be anyway. |
 
 ### Frontend
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `VITE_STRIPE_PUBLIC_KEY` | For billing UI | — | Stripe publishable key. Without it, the subscribe flow still creates the subscription server-side, but the payment form shows "Stripe isn't configured" instead of a card element. |
+| `VITE_SENTRY_DSN` | No | — | Frontend error tracking. Vite bakes this in **at build time**, not read at runtime — set it in Vercel's project env before the build, same as `VITE_API_URL`. Unset, the Sentry SDK is fully tree-shaken out of the bundle (verified: 0 bytes either way), not just inert. |
 
-See `.env.example` (repo root) and `frontend/.env.example` for the complete
-lists, including vars reserved for later milestones (Mixpanel, Sentry) that
-aren't read by the app yet.
+See `.env.example` (repo root) and `frontend/.env.example` for the complete lists.
 
 ### Database migrations (Alembic)
 

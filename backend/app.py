@@ -7,11 +7,15 @@ Main API application with endpoints for:
 - Health checks
 """
 
+import logging
+import time
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from typing import List, Optional
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy.orm import Session
 
 from .models import (
     OptimizeRequest,
@@ -39,11 +43,20 @@ from .providers import (
     get_product_index,
     MOCK_DATA_NOTICE,
 )
-from .auth import router as auth_router
+from .auth import get_current_user_optional, router as auth_router
 from .user_routes import router as user_router
 from .kroger_routes import router as kroger_router
 from .deal_event_routes import router as deal_event_router
-from .database import init_db
+from .analytics_routes import router as analytics_router
+from .database import get_db, init_db
+from .db_models import OptimizedPlanRecord, ShoppingListRecord, User
+from .engines.analytics_engine import track_event
+from .monitoring import configure_logging, init_monitoring
+
+configure_logging()
+logger = logging.getLogger("coupon_sentinel.requests")
+
+init_monitoring()
 
 
 # ============================================================================
@@ -82,10 +95,28 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def log_request_timing(request: Request, call_next):
+    """Minimal performance monitoring: log every request's latency, and warn
+    on slow ones. No external APM — real signal from the process's own logs,
+    not a mock. A dedicated APM is real follow-up work, not built here."""
+    start = time.monotonic()
+    response = await call_next(request)
+    duration_ms = (time.monotonic() - start) * 1000
+
+    logger.info("%s %s -> %d (%.1fms)", request.method, request.url.path, response.status_code, duration_ms)
+    if duration_ms > 1000:
+        logger.warning("Slow request: %s %s took %.1fms", request.method, request.url.path, duration_ms)
+
+    return response
+
+
 app.include_router(auth_router)
 app.include_router(user_router)
 app.include_router(kroger_router)
 app.include_router(deal_event_router)
+app.include_router(analytics_router)
 
 
 # ============================================================================
@@ -125,23 +156,74 @@ async def health_check():
 # ============================================================================
 
 @app.post("/api/optimize", response_model=OptimizeResponse)
-async def optimize(request: OptimizeRequest):
+async def optimize(
+    request: OptimizeRequest,
+    user: Optional[User] = Depends(get_current_user_optional),
+    db: Session = Depends(get_db),
+):
     """
     Optimize a shopping list for maximum savings.
-    
+
     Takes a list of items and returns the cheapest way to buy them,
     including coupon stacking and store recommendations.
+
+    Works signed-out (unchanged from before Milestone 5). When called with a
+    valid access token, the shopping list and result are also persisted for
+    that user (ShoppingListRecord/OptimizedPlanRecord — see backend/db_models.py)
+    and an "optimize" analytics event is tracked either way (user_id is null
+    when signed-out).
     """
     if not request.shopping_list:
         raise HTTPException(status_code=400, detail="Shopping list cannot be empty")
-    
+
     # Load data (in production, this would come from real sources)
     store_items = get_mock_store_items()
     coupons = get_mock_coupons()
-    
+
     # Run optimization
     result = optimize_shopping_list(request, store_items, coupons)
-    
+
+    # Persistence + analytics are additive instrumentation on an endpoint
+    # that has always been — and is explicitly regression-tested elsewhere
+    # to remain — usable with zero DB dependency (anonymous callers, or a
+    # deploy where migrations haven't run yet). A DB hiccup here must never
+    # turn a working optimization into a 500; log it and still return the
+    # result the caller actually asked for.
+    try:
+        if user is not None:
+            shopping_list_record = ShoppingListRecord(
+                user_id=user.id,
+                name=f"Optimize {datetime.now(timezone.utc):%Y-%m-%d %H:%M}",
+                items=[item.model_dump() for item in request.shopping_list],
+            )
+            db.add(shopping_list_record)
+            db.flush()  # assigns shopping_list_record.id without a second round trip
+
+            db.add(
+                OptimizedPlanRecord(
+                    user_id=user.id,
+                    shopping_list_id=shopping_list_record.id,
+                    plan=result.model_dump(mode="json"),
+                    total_savings=result.total_savings,
+                )
+            )
+            db.commit()
+
+        track_event(
+            "optimize",
+            db,
+            user_id=user.id if user else None,
+            event_data={
+                "item_count": len(request.shopping_list),
+                "total_savings": result.total_savings,
+                "savings_percentage": result.savings_percentage,
+                "allow_multi_store": request.allow_multi_store,
+            },
+        )
+    except Exception:
+        db.rollback()
+        logger.exception("Failed to persist optimize result / track analytics event")
+
     return result
 
 

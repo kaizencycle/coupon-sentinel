@@ -19,6 +19,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.orm import Session
 
 from backend.db_models import Subscription, User
+from backend.engines.analytics_engine import track_event
 
 STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY")
 STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET")
@@ -160,6 +161,8 @@ def create_subscription(user: User, tier: str, db: Session) -> dict:
     db.add(record)
     db.commit()
 
+    track_event("subscribe", db, user_id=user.id, event_data={"tier": tier})
+
     payment_intent = stripe_subscription.latest_invoice.payment_intent
     return {
         "subscription_id": stripe_subscription.id,
@@ -185,9 +188,13 @@ def cancel_subscription(user: User, db: Session) -> Subscription:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No active subscription found")
 
     stripe.Subscription.delete(record.stripe_subscription_id)
+    canceled_tier = record.tier
     record.status = "canceled"
     user.tier = "free"
     db.commit()
+
+    track_event("cancel_subscription", db, user_id=user.id, event_data={"tier": canceled_tier})
+
     return record
 
 

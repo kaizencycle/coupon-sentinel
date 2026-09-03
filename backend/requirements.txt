@@ -25,6 +25,9 @@ email-validator>=2.1.0
 # Billing
 stripe>=8.0.0
 
+# Monitoring (Milestone 5)
+sentry-sdk>=2.0.0
+
 # Development
 python-dotenv>=1.0.0
 

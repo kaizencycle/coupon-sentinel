@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 
 from backend.database import get_db
 from backend.db_models import User
+from backend.engines.analytics_engine import track_event
 from backend.engines.email_engine import send_email
 
 JWT_SECRET = os.environ.get("JWT_SECRET") or secrets.token_urlsafe(32)
@@ -144,6 +145,25 @@ def get_current_user(
     return user
 
 
+def get_current_user_optional(
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
+    db: Session = Depends(get_db),
+) -> Optional[User]:
+    """
+    Like get_current_user, but never raises — missing, expired, or invalid
+    credentials just resolve to None. For endpoints that work both signed-out
+    and signed-in (POST /api/optimize: always usable, but persists a plan +
+    tracks an analytics event tied to the user when they're authenticated).
+    """
+    if credentials is None:
+        return None
+    try:
+        user_id = decode_token(credentials.credentials, expected_type="access")
+    except HTTPException:
+        return None
+    return db.get(User, int(user_id))
+
+
 def require_tier(*allowed_tiers: str):
     """Dependency factory gating an endpoint to specific subscription tiers."""
 
@@ -173,6 +193,8 @@ async def register(request: RegisterRequest, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(user)
 
+    track_event("signup", db, user_id=user.id)
+
     return TokenResponse(
         access_token=create_access_token(user.id),
         refresh_token=create_refresh_token(user.id),
@@ -187,6 +209,8 @@ async def login(request: LoginRequest, db: Session = Depends(get_db)):
 
     user.last_login = datetime.now(timezone.utc)
     db.commit()
+
+    track_event("login", db, user_id=user.id)
 
     return TokenResponse(
         access_token=create_access_token(user.id),
