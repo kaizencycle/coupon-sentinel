@@ -7,9 +7,11 @@ Main API application with endpoints for:
 - Health checks
 """
 
+from contextlib import asynccontextmanager
+from typing import List, Optional
+
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from typing import List, Optional
 
 from .models import (
     OptimizeRequest,
@@ -37,18 +39,36 @@ from .providers import (
     get_product_index,
     MOCK_DATA_NOTICE,
 )
+from .auth import router as auth_router
+from .user_routes import router as user_router
+from .database import init_db
 
 
 # ============================================================================
 # App Setup
 # ============================================================================
 
+@asynccontextmanager
+async def _lifespan(app: FastAPI):
+    """
+    Create ORM tables if they don't exist yet.
+
+    Safe no-op against an already-migrated Postgres database (CREATE TABLE IF
+    NOT EXISTS semantics via checkfirst). Production deployments should still
+    run `alembic upgrade head` explicitly as part of deploy — this exists so
+    local/dev/test runs against the default SQLite file work out of the box.
+    """
+    init_db()
+    yield
+
+
 app = FastAPI(
     title="Coupon Sentinel API",
     description="Extreme couponing, automated. Find the cheapest way to fulfill your shopping list.",
     version="0.1.0",
     docs_url="/docs",
-    redoc_url="/redoc"
+    redoc_url="/redoc",
+    lifespan=_lifespan,
 )
 
 # CORS middleware for frontend
@@ -59,6 +79,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(auth_router)
+app.include_router(user_router)
 
 
 # ============================================================================

@@ -37,6 +37,37 @@ uvicorn backend.app:app --reload --port 8000
 
 **API docs available at:** http://localhost:8000/docs
 
+By default the backend uses a local SQLite file (`backend/coupon_sentinel.db`,
+auto-created on startup) for the auth/billing/evidence tables — no Postgres
+setup needed for local dev. Set `DATABASE_URL` (see `.env.example`) to point
+at Postgres instead; then run migrations explicitly with:
+
+```bash
+cd backend
+alembic upgrade head
+```
+
+### Try the real auth + billing endpoints
+
+```bash
+# Register (returns access_token + refresh_token)
+curl -X POST http://localhost:8000/api/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email": "you@example.com", "password": "password123"}'
+
+# Use the access_token to fetch your profile
+curl http://localhost:8000/api/user/profile \
+  -H "Authorization: Bearer <access_token>"
+
+# List subscription plans (free/pro/premium tier matrix)
+curl http://localhost:8000/api/subscriptions/plans
+```
+
+`POST /api/user/subscription` and the Stripe webhook return `503` until
+`STRIPE_SECRET_KEY` (and `STRIPE_PRICE_ID_PRO` / `STRIPE_PRICE_ID_PREMIUM`)
+are set — that's intentional: it fails loudly instead of pretending to bill
+someone with no real Stripe account behind it.
+
 ### 2. Start the Frontend
 
 In a new terminal:

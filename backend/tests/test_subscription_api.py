@@ -1,0 +1,130 @@
+"""Tests for subscription/billing endpoints and the Stripe wrapper engine."""
+
+from unittest.mock import MagicMock
+
+from backend.db_models import Subscription, User
+from backend.engines import subscription_engine
+
+
+def _auth_headers(client, email="billing@example.com"):
+    tokens = client.post(
+        "/api/auth/register", json={"email": email, "password": "password123"}
+    ).json()
+    return {"Authorization": f"Bearer {tokens['access_token']}"}
+
+
+class TestPlansEndpoint:
+    def test_list_plans_returns_tier_matrix(self, db_client):
+        client, _ = db_client
+        response = client.get("/api/subscriptions/plans")
+        assert response.status_code == 200
+        tiers = {plan["tier"] for plan in response.json()["plans"]}
+        assert tiers == {"free", "pro", "premium"}
+
+
+class TestSubscriptionEndpointsWithoutStripeConfigured:
+    """Without STRIPE_SECRET_KEY set, billing endpoints fail loudly (503), not silently."""
+
+    def test_create_subscription_requires_auth(self, db_client):
+        client, _ = db_client
+        response = client.post("/api/user/subscription", json={"tier": "pro"})
+        assert response.status_code == 401
+
+    def test_create_subscription_rejects_free_tier(self, db_client):
+        client, _ = db_client
+        response = client.post(
+            "/api/user/subscription", json={"tier": "free"}, headers=_auth_headers(client)
+        )
+        assert response.status_code == 400
+
+    def test_create_subscription_without_stripe_key_returns_503(self, db_client):
+        client, _ = db_client
+        response = client.post(
+            "/api/user/subscription",
+            json={"tier": "pro"},
+            headers=_auth_headers(client, "nostripe@example.com"),
+        )
+        assert response.status_code == 503
+
+    def test_cancel_without_active_subscription_requires_stripe(self, db_client):
+        client, _ = db_client
+        response = client.delete(
+            "/api/user/subscription", headers=_auth_headers(client, "cancel@example.com")
+        )
+        assert response.status_code == 503
+
+    def test_webhook_without_config_returns_503(self, db_client):
+        client, _ = db_client
+        response = client.post(
+            "/api/webhooks/stripe", content=b"{}", headers={"stripe-signature": "x"}
+        )
+        assert response.status_code == 503
+
+
+class TestSubscriptionEngineWithMockedStripe:
+    """Exercise the actual billing logic with stripe.* calls mocked out."""
+
+    def test_create_subscription_persists_local_record(self, db_client, monkeypatch):
+        _, session_factory = db_client
+        db = session_factory()
+        user = User(email="mocked@example.com", password_hash="x")
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+        monkeypatch.setattr(subscription_engine, "STRIPE_SECRET_KEY", "sk_test_fake")
+        monkeypatch.setenv("STRIPE_PRICE_ID_PRO", "price_test_pro")
+
+        fake_customer = MagicMock(id="cus_123")
+        fake_payment_intent = MagicMock(client_secret="secret_abc")
+        fake_invoice = MagicMock(payment_intent=fake_payment_intent)
+        fake_subscription = MagicMock(id="sub_123", status="incomplete", latest_invoice=fake_invoice)
+
+        monkeypatch.setattr(subscription_engine.stripe.Customer, "create", lambda **kw: fake_customer)
+        monkeypatch.setattr(subscription_engine.stripe.Subscription, "create", lambda **kw: fake_subscription)
+
+        result = subscription_engine.create_subscription(user, "pro", db)
+
+        assert result["subscription_id"] == "sub_123"
+        assert result["client_secret"] == "secret_abc"
+        assert user.stripe_customer_id == "cus_123"
+
+        record = db.query(Subscription).filter_by(user_id=user.id).first()
+        assert record is not None
+        assert record.tier == "pro"
+        assert record.status == "incomplete"
+        db.close()
+
+    def test_webhook_subscription_deleted_downgrades_user_to_free(self, db_client, monkeypatch):
+        _, session_factory = db_client
+        db = session_factory()
+        user = User(email="downgrade@example.com", password_hash="x", tier="pro")
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+
+        sub_record = Subscription(
+            user_id=user.id, tier="pro", stripe_subscription_id="sub_999", status="active"
+        )
+        db.add(sub_record)
+        db.commit()
+
+        monkeypatch.setattr(subscription_engine, "STRIPE_SECRET_KEY", "sk_test_fake")
+        monkeypatch.setattr(subscription_engine, "STRIPE_WEBHOOK_SECRET", "whsec_fake")
+
+        fake_event = {
+            "type": "customer.subscription.deleted",
+            "data": {"object": {"id": "sub_999", "status": "canceled"}},
+        }
+        monkeypatch.setattr(
+            subscription_engine.stripe.Webhook, "construct_event", lambda *a, **kw: fake_event
+        )
+
+        result = subscription_engine.handle_webhook_event(b"{}", "sig", db)
+
+        assert result["type"] == "customer.subscription.deleted"
+        db.refresh(user)
+        db.refresh(sub_record)
+        assert sub_record.status == "canceled"
+        assert user.tier == "free"
+        db.close()

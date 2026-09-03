@@ -246,6 +246,21 @@ Main optimization endpoint.
 - ✅ Local price memory + BUY/WAIT signals (PR-2)
 - ✅ Product identity bridge + deal-aware optimize endpoint (PR-3, partial catalog)
 
+### Phase 1 MVP progress (Micro-SaaS build)
+
+Milestone 1 (Backend Foundation) is implemented — real Postgres-backed
+persistence sits alongside the existing unauthenticated mock-data optimizer,
+which is untouched:
+
+- [x] PostgreSQL schema + Alembic migrations (`backend/migrations/`, `DATABASE_URL`; defaults to local SQLite for dev/tests)
+- [x] JWT auth: `POST /api/auth/register`, `POST /api/auth/login`, `POST /api/auth/refresh`, `GET /api/user/profile`
+- [x] Stripe scaffolding: `POST /api/user/subscription`, `DELETE /api/user/subscription`, `GET /api/subscriptions/plans`, `POST /api/webhooks/stripe` (`backend/engines/subscription_engine.py`) — returns `503` until real Stripe keys are set, by design
+- [x] Tier gating dependency (`backend/auth.py:require_tier`) ready for endpoints that should require Pro/Premium
+- [x] Unit tests for auth + subscription flows (`backend/tests/test_auth.py`, `backend/tests/test_subscription_api.py`), CI running the full suite on every PR (`.github/workflows/backend-ci.yml`)
+
+**Not yet built** (needs real accounts/credentials + further sessions, roughly Milestones 2-7 of the phase-1 plan):
+Kroger API integration, deal-inference engine wired to live data, email verification, frontend auth/billing/dashboard pages, Mixpanel/Sentry, and production deployment of this new surface. The mock-data optimizer (`/api/optimize`, `/api/deals`, etc.) and its frontend remain fully functional and are not gated by auth.
+
 ### V1 (Roadmap)
 - [ ] Real store API integrations (public data only)
 - [ ] Rebate app APIs (Ibotta, Fetch)

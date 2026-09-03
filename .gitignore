@@ -79,3 +79,7 @@ Thumbs.db
 tmp/
 temp/
 *.tmp
+
+# Local SQLite dev database (DATABASE_URL fallback — see backend/database.py)
+*.db
+*.db-journal
