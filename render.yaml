@@ -42,10 +42,16 @@ services:
         sync: false
       - key: SENDGRID_API_KEY
         sync: false
+      - key: EMAIL_FROM
+        sync: false  # Required if SendGrid is the active provider (RESEND_API_KEY unset)
       - key: KROGER_CLIENT_ID
         sync: false
       - key: KROGER_CLIENT_SECRET
         sync: false
+      - key: MIXPANEL_TOKEN
+        sync: false  # Milestone 5 — optional; analytics still persist locally without it
+      - key: SENTRY_DSN
+        sync: false  # Milestone 5 — optional; monitoring is a no-op without it
       - key: FRONTEND_URL
         sync: false  # Set to the deployed frontend URL once known
     healthCheckPath: /health
@@ -65,6 +71,8 @@ services:
         # Example: https://coupon-sentinel-api.onrender.com
       - key: VITE_STRIPE_PUBLIC_KEY
         sync: false  # Optional — without it, the subscribe flow shows "Stripe isn't configured"
+      - key: VITE_SENTRY_DSN
+        sync: false  # Milestone 5 — optional; baked in at build time, fully tree-shaken out if unset
       - key: PORT
         value: 3000
     autoDeploy: true
