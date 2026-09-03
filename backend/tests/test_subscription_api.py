@@ -132,6 +132,32 @@ class TestSubscriptionEngineWithMockedStripe:
         assert create_calls == []  # never called Stripe once a duplicate was detected
         db.close()
 
+    @pytest.mark.parametrize("blocking_status", ["active", "incomplete", "trialing", "past_due"])
+    def test_cancel_finds_subscription_in_any_open_status(self, db_client, monkeypatch, blocking_status):
+        """A user stuck in e.g. 'incomplete' must be able to cancel their way out —
+        cancel_subscription's query has to match create_subscription's blocking set."""
+        _, session_factory = db_client
+        db = session_factory()
+        user = User(email=f"cancel-{blocking_status}@example.com", password_hash="x")
+        db.add(user)
+        db.commit()
+        db.refresh(user)
+        db.add(
+            Subscription(
+                user_id=user.id, tier="pro", stripe_subscription_id="sub_stuck", status=blocking_status
+            )
+        )
+        db.commit()
+
+        monkeypatch.setattr(subscription_engine, "STRIPE_SECRET_KEY", "sk_test_fake")
+        monkeypatch.setattr(subscription_engine.stripe.Subscription, "delete", lambda sub_id: None)
+
+        record = subscription_engine.cancel_subscription(user, db)
+
+        assert record.status == "canceled"
+        assert user.tier == "free"
+        db.close()
+
     def test_webhook_subscription_deleted_downgrades_user_to_free(self, db_client, monkeypatch):
         _, session_factory = db_client
         db = session_factory()

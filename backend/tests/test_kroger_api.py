@@ -75,6 +75,24 @@ class TestKrogerSearchEndpoint:
         assert records[0].source == "kroger_api"
         assert float(records[0].price) == 2.99
         assert float(records[0].confidence) == 0.95
+        assert records[0].store_id == "kroger"  # no location_id given -> generic bucket
+        db.close()
+
+    def test_search_persists_observation_under_requested_location(self, db_client):
+        """Two different Kroger locations must not collide under one store_id
+        (they're different physical stores with different local prices)."""
+        client, session_factory = db_client
+        fake_product = KrogerProduct(product_id="loc-test", description="Bread", price=3.5)
+        app.dependency_overrides[get_kroger_client] = lambda: _FakeKrogerClient(products=[fake_product])
+
+        response = client.get(
+            "/api/kroger/search", params={"query": "bread", "location_id": "01400943"}
+        )
+        assert response.status_code == 200
+
+        db = session_factory()
+        record = db.query(PriceObservationRecord).filter_by(product_id="loc-test").one()
+        assert record.store_id == "01400943"
         db.close()
 
 

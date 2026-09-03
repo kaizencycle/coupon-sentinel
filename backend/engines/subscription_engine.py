@@ -172,9 +172,12 @@ def cancel_subscription(user: User, db: Session) -> Subscription:
     """Cancel the user's active Stripe subscription and downgrade to free."""
     _require_stripe()
 
+    # Same open-status set create_subscription() blocks on — otherwise a user
+    # stuck in e.g. "incomplete" (abandoned checkout) or "past_due" could
+    # neither create a new subscription nor cancel the one blocking them.
     record = (
         db.query(Subscription)
-        .filter(Subscription.user_id == user.id, Subscription.status == "active")
+        .filter(Subscription.user_id == user.id, Subscription.status.in_(_OPEN_SUBSCRIPTION_STATUSES))
         .order_by(Subscription.id.desc())
         .first()
     )

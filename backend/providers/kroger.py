@@ -37,6 +37,10 @@ class KrogerRateLimitError(RuntimeError):
     """Raised when the client-side sliding-window rate limit is exceeded."""
 
 
+class KrogerNotFoundError(RuntimeError):
+    """Raised when Kroger returns 404 for a specific resource lookup."""
+
+
 class KrogerRateLimiter:
     """
     Sliding-window rate limiter — Kroger's documented public API limit is
@@ -150,6 +154,8 @@ class KrogerClient:
         token = self._get_access_token()
         self._rate_limiter.acquire()
         response = self._http.get(path, params=params, headers={"Authorization": f"Bearer {token}"})
+        if response.status_code == 404:
+            raise KrogerNotFoundError(f"Kroger resource not found: {path}")
         response.raise_for_status()
         return response.json()
 
@@ -166,7 +172,10 @@ class KrogerClient:
         params = {}
         if location_id:
             params["filter.locationId"] = location_id
-        data = self._authed_get(f"/products/{product_id}", params)
+        try:
+            data = self._authed_get(f"/products/{product_id}", params)
+        except KrogerNotFoundError:
+            return None
 
         items = data.get("data")
         if not items:

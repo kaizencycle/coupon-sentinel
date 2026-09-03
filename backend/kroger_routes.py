@@ -19,7 +19,12 @@ from sqlalchemy.orm import Session
 
 from backend.database import get_db
 from backend.engines.kroger_price_engine import record_price_observations
-from backend.providers.kroger import KrogerClient, KrogerNotConfiguredError, KrogerRateLimitError
+from backend.providers.kroger import (
+    KrogerClient,
+    KrogerNotConfiguredError,
+    KrogerNotFoundError,
+    KrogerRateLimitError,
+)
 
 router = APIRouter(prefix="/api/kroger", tags=["kroger"])
 
@@ -39,6 +44,8 @@ def _call_kroger(fn, *args, **kwargs):
         return fn(*args, **kwargs)
     except KrogerNotConfiguredError as exc:
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=str(exc))
+    except KrogerNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
     except KrogerRateLimitError as exc:
         raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=str(exc))
     except httpx.HTTPStatusError as exc:
@@ -51,15 +58,22 @@ def _call_kroger(fn, *args, **kwargs):
 
 
 @router.get("/search")
-async def search_kroger_products(
+def search_kroger_products(
     query: str = Query(..., min_length=1, description="Search term, e.g. 'milk'"),
     location_id: Optional[str] = Query(None, description="Kroger store location id"),
     limit: int = Query(10, ge=1, le=50),
     client: KrogerClient = Depends(get_kroger_client),
     db: Session = Depends(get_db),
 ):
+    # A sync `def` route: FastAPI runs it in a thread pool rather than the
+    # event loop, since KrogerClient's httpx.Client calls are blocking —
+    # an `async def` here would stall every other in-flight request (health
+    # checks, auth, the optimizer) for up to the 10s Kroger timeout.
     products = _call_kroger(client.search_products, query, location_id=location_id, limit=limit)
-    record_price_observations(products, store_id="kroger", db=db)
+    # Persist under the specific store queried, not a generic "kroger"
+    # bucket — otherwise observations from different physical stores
+    # collide under one store_id and corrupt local price history.
+    record_price_observations(products, store_id=location_id or "kroger", db=db)
 
     return {
         "products": [asdict(p) for p in products],
@@ -69,7 +83,7 @@ async def search_kroger_products(
 
 
 @router.get("/products/{product_id}")
-async def get_kroger_product(
+def get_kroger_product(
     product_id: str,
     location_id: Optional[str] = Query(None, description="Kroger store location id"),
     client: KrogerClient = Depends(get_kroger_client),
@@ -79,6 +93,6 @@ async def get_kroger_product(
     if product is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Product not found: {product_id}")
 
-    record_price_observations([product], store_id="kroger", db=db)
+    record_price_observations([product], store_id=location_id or "kroger", db=db)
 
     return {"product": asdict(product), "source": "kroger_api"}

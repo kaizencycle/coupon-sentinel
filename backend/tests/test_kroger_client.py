@@ -138,6 +138,19 @@ class TestKrogerClientGetProduct:
         client = _client_with_handler(handler)
         assert client.get_product("nonexistent") is None
 
+    def test_get_product_real_404_returns_none_not_502(self):
+        """Kroger's actual not-found response is an HTTP 404, not a 200 with
+        empty data — this must resolve the same way (None), not surface as a
+        generic upstream error."""
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            if request.url.path.endswith("/connect/oauth2/token"):
+                return _token_response()
+            return httpx.Response(404, json={"errors": {"reason": "product not found"}})
+
+        client = _client_with_handler(handler)
+        assert client.get_product("nonexistent") is None
+
     def test_get_product_raises_on_http_error(self):
         def handler(request: httpx.Request) -> httpx.Response:
             if request.url.path.endswith("/connect/oauth2/token"):
