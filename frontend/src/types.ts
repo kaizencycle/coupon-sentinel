@@ -228,6 +228,62 @@ export interface PriceObservationsResponse {
 }
 
 // ============================================================================
+// Auth / Subscription Types (Milestone 4)
+// ============================================================================
+
+export interface AuthTokens {
+  access_token: string;
+  refresh_token: string;
+  token_type: string;
+}
+
+export interface UserProfile {
+  id: number;
+  email: string;
+  tier: 'free' | 'pro' | 'premium';
+  is_email_verified: boolean;
+}
+
+export interface Plan {
+  tier: string;
+  name: string;
+  monthly_price_usd: number;
+  shopping_lists: number | string;
+  store_comparison: string;
+  coupons: string;
+  price_history_days: number;
+  deal_alerts: string;
+  multi_store_optimize: boolean;
+  savings_tracking: boolean;
+  export_plans: boolean;
+  api_access: boolean;
+}
+
+export interface PlansResponse {
+  plans: Plan[];
+}
+
+export interface CreateSubscriptionResponse {
+  subscription_id: string;
+  status: string;
+  client_secret: string | null;
+}
+
+export interface CancelSubscriptionResponse {
+  status: string;
+  tier: string;
+}
+
+export interface SubscriptionStatus {
+  status: string | null;
+  tier: string | null;
+}
+
+export interface ApiErrorBody {
+  detail?: string;
+}
+
+// ============================================================================
 // UI State Types
 // ============================================================================
 

@@ -25,6 +25,35 @@ class TestPlansEndpoint:
         assert tiers == {"free", "pro", "premium"}
 
 
+class TestSubscriptionStatusEndpoint:
+    def test_no_subscription_returns_nulls(self, db_client):
+        client, _ = db_client
+        response = client.get("/api/user/subscription", headers=_auth_headers(client, "nosub@example.com"))
+        assert response.status_code == 200
+        assert response.json() == {"status": None, "tier": None}
+
+    def test_requires_auth(self, db_client):
+        client, _ = db_client
+        response = client.get("/api/user/subscription")
+        assert response.status_code == 401
+
+    def test_surfaces_incomplete_subscription_even_though_tier_is_free(self, db_client):
+        """This is the whole point of the endpoint: a stuck 'incomplete'
+        subscription doesn't touch user.tier, so the frontend needs a way to
+        see it independent of tier to show a cancel button."""
+        client, session_factory = db_client
+        headers = _auth_headers(client, "stuck@example.com")
+        db = session_factory()
+        user = db.query(User).filter_by(email="stuck@example.com").first()
+        assert user.tier == "free"
+        db.add(Subscription(user_id=user.id, tier="pro", stripe_subscription_id="sub_x", status="incomplete"))
+        db.commit()
+        db.close()
+
+        response = client.get("/api/user/subscription", headers=headers)
+        assert response.json() == {"status": "incomplete", "tier": "pro"}
+
+
 class TestSubscriptionEndpointsWithoutStripeConfigured:
     """Without STRIPE_SECRET_KEY set, billing endpoints fail loudly (503), not silently."""
 

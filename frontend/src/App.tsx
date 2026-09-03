@@ -4,13 +4,24 @@ import { StoreSelector } from './components/StoreSelector';
 import { SavingsSummary } from './components/SavingsSummary';
 import { OptimizedPlan } from './components/OptimizedPlan';
 import { DealsView } from './components/DealsView';
+import { AccountView } from './components/AccountView';
+import { VerifyEmailPage } from './components/VerifyEmailPage';
 import { optimizeShoppingList, getDeals } from './api/client';
 import type { ShoppingItem, OptimizeResponse, DealEventDetail } from './types';
 import './App.css';
 
-type AppView = 'optimizer' | 'deals';
+type AppView = 'optimizer' | 'deals' | 'account';
 
 function App() {
+  // No router in this app (see frontend/README-style conventions in api/client.ts) —
+  // /verify-email is the one path that needs to work as a standalone link clicked
+  // from an email, so it's handled here rather than pulling in a routing library
+  // for a single page.
+  const verifyEmailToken =
+    window.location.pathname === '/verify-email'
+      ? new URLSearchParams(window.location.search).get('token')
+      : null;
+
   const [activeView, setActiveView] = useState<AppView>('optimizer');
 
   // Optimizer state
@@ -112,6 +123,10 @@ function App() {
     setError(null);
   };
 
+  if (verifyEmailToken) {
+    return <VerifyEmailPage token={verifyEmailToken} />;
+  }
+
   return (
     <div className="app">
       <header className="masthead">
@@ -132,11 +147,20 @@ function App() {
           >
             Deal Intelligence
           </button>
+          <button
+            type="button"
+            className={`nav-tab ${activeView === 'account' ? 'active' : ''}`}
+            onClick={() => setActiveView('account')}
+          >
+            Account
+          </button>
         </nav>
       </header>
 
-      <main className={`main ${activeView === 'deals' ? 'main-deals' : ''}`}>
-        {activeView === 'optimizer' ? (
+      <main className={`main ${activeView === 'deals' || activeView === 'account' ? 'main-deals' : ''}`}>
+        {activeView === 'account' ? (
+          <AccountView />
+        ) : activeView === 'optimizer' ? (
           <>
             <div className="input-section">
               <ShoppingListInput

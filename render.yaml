@@ -38,6 +38,16 @@ services:
         sync: false
       - key: STRIPE_PRICE_ID_PREMIUM
         sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: SENDGRID_API_KEY
+        sync: false
+      - key: KROGER_CLIENT_ID
+        sync: false
+      - key: KROGER_CLIENT_SECRET
+        sync: false
+      - key: FRONTEND_URL
+        sync: false  # Set to the deployed frontend URL once known
     healthCheckPath: /health
     autoDeploy: true
 
@@ -53,6 +63,8 @@ services:
       - key: VITE_API_URL
         sync: false  # Set this manually in Render dashboard after backend deploys
         # Example: https://coupon-sentinel-api.onrender.com
+      - key: VITE_STRIPE_PUBLIC_KEY
+        sync: false  # Optional — without it, the subscribe flow shows "Stripe isn't configured"
       - key: PORT
         value: 3000
     autoDeploy: true
