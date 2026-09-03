@@ -70,10 +70,12 @@ function authHeaders(accessToken: string): HeadersInit {
  * Optimize a shopping list
  */
 export async function optimizeShoppingList(
-  request: OptimizeRequest
+  request: OptimizeRequest,
+  accessToken?: string | null
 ): Promise<OptimizeResponse> {
   return fetchAPI<OptimizeResponse>('/api/optimize', {
     method: 'POST',
+    headers: accessToken ? authHeaders(accessToken) : undefined,
     body: JSON.stringify(request),
   });
 }

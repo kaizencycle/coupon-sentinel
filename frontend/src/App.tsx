@@ -6,6 +6,7 @@ import { OptimizedPlan } from './components/OptimizedPlan';
 import { DealsView } from './components/DealsView';
 import { AccountView } from './components/AccountView';
 import { VerifyEmailPage } from './components/VerifyEmailPage';
+import { useAuth } from './hooks/useAuth';
 import { optimizeShoppingList, getDeals } from './api/client';
 import type { ShoppingItem, OptimizeResponse, DealEventDetail } from './types';
 import './App.css';
@@ -21,6 +22,8 @@ function App() {
     window.location.pathname === '/verify-email'
       ? new URLSearchParams(window.location.search).get('token')
       : null;
+
+  const { accessToken } = useAuth();
 
   const [activeView, setActiveView] = useState<AppView>('optimizer');
 
@@ -101,13 +104,16 @@ function App() {
     setError(null);
 
     try {
-      const response = await optimizeShoppingList({
-        shopping_list: shoppingList,
-        zip_code: zipCode,
-        preferred_stores: selectedStores,
-        allow_multi_store: allowMultiStore,
-        rebate_apps: ['Ibotta', 'Fetch'],
-      });
+      const response = await optimizeShoppingList(
+        {
+          shopping_list: shoppingList,
+          zip_code: zipCode,
+          preferred_stores: selectedStores,
+          allow_multi_store: allowMultiStore,
+          rebate_apps: ['Ibotta', 'Fetch'],
+        },
+        accessToken
+      );
 
       setResult(response);
     } catch (err) {

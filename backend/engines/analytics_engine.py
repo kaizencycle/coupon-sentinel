@@ -14,6 +14,7 @@ against a real Mixpanel project — no token exists for this project yet.
 
 import logging
 import os
+import threading
 from typing import Optional
 
 import httpx
@@ -40,7 +41,18 @@ def track_event(
     db.refresh(record)
 
     if MIXPANEL_TOKEN:
-        _forward_to_mixpanel(event_type, user_id, event_data or {})
+        # track_event() is called synchronously from inside async route
+        # handlers (register/login/optimize) as well as plain sync engine
+        # functions (subscription_engine.py). A blocking httpx.post() here
+        # would stall the single asyncio event loop — for up to the 5s
+        # timeout below — for every other in-flight request, not just this
+        # one. Fire-and-forget on a daemon thread keeps this genuinely
+        # non-blocking regardless of caller context.
+        threading.Thread(
+            target=_forward_to_mixpanel,
+            args=(event_type, user_id, event_data or {}),
+            daemon=True,
+        ).start()
 
     return record
 

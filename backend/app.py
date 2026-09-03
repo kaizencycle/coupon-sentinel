@@ -100,9 +100,19 @@ app.add_middleware(
 async def log_request_timing(request: Request, call_next):
     """Minimal performance monitoring: log every request's latency, and warn
     on slow ones. No external APM — real signal from the process's own logs,
-    not a mock. A dedicated APM is real follow-up work, not built here."""
+    not a mock. A dedicated APM is real follow-up work, not built here.
+
+    Wrapped in try/except so a handler that raises still gets logged (with
+    its duration) before the exception propagates — failed requests, slow
+    500s especially, are exactly the ones monitoring exists to catch."""
     start = time.monotonic()
-    response = await call_next(request)
+    try:
+        response = await call_next(request)
+    except Exception:
+        duration_ms = (time.monotonic() - start) * 1000
+        logger.warning("%s %s -> FAILED (%.1fms)", request.method, request.url.path, duration_ms)
+        raise
+
     duration_ms = (time.monotonic() - start) * 1000
 
     logger.info("%s %s -> %d (%.1fms)", request.method, request.url.path, response.status_code, duration_ms)
