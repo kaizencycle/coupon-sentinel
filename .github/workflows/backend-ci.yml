@@ -6,10 +6,12 @@ on:
       - main
     paths:
       - 'backend/**'
+      - '.coveragerc'
       - '.github/workflows/backend-ci.yml'
   pull_request:
     paths:
       - 'backend/**'
+      - '.coveragerc'
       - '.github/workflows/backend-ci.yml'
 
 jobs:
@@ -29,8 +31,17 @@ jobs:
       - name: Install dependencies
         run: pip install -r backend/requirements.txt
 
-      - name: Run tests
-        run: cd backend && python -m pytest -q
+      - name: Run tests with coverage
+        run: |
+          python -m pytest backend/tests -q \
+            --cov=backend --cov-report=term-missing --cov-report=xml \
+            --cov-fail-under=85
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-coverage
+          path: coverage.xml
 
       - name: Verify Alembic migrations apply cleanly
         run: |

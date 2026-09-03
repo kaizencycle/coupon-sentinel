@@ -295,8 +295,17 @@ Milestone 5 (Analytics & Monitoring) is implemented:
 - [x] Request-timing middleware (`backend/app.py:log_request_timing`) — logs method/path/status/duration for every request, warns on anything over 1s. Log-based, not a real APM (no New Relic/Datadog credentials or evaluation this session).
 - [ ] Not done: admin/revenue dashboard (explicitly optional in the original spec), real alerting on errors or performance (needs a configured Sentry project + alert rules, not just the SDK), any live verification against Mixpanel or Sentry
 
-**Not yet built** (needs real accounts/credentials + further sessions, roughly Milestones 6-7 of the phase-1 plan):
-Full test/coverage tooling and documentation polish (Milestone 6), and actual production deployment — a live domain, Postgres, and all of the above pointed at real provider accounts (Milestone 7). The mock-data optimizer (`/api/optimize`, `/api/deals`, etc.) and its original frontend views remain fully functional and are not gated by auth.
+Milestone 6 (Test/Coverage Tooling & Documentation Polish) is implemented:
+
+- [x] Backend coverage tooling: `pytest-cov` + a repo-root `.coveragerc` (omits `backend/run.py` — the Render entrypoint, never imported under test — and `backend/tests/*`/`backend/migrations/*` from the denominator). CI (`.github/workflows/backend-ci.yml`) now runs `pytest --cov=backend --cov-fail-under=85` and uploads the HTML/XML report as a build artifact. Actual measured coverage on the existing 165-test suite: **91%** — the threshold has real headroom, it isn't set to just barely pass.
+- [x] Frontend test framework, from zero: this repo had no frontend tests and no working `npm run lint` (no ESLint config existed — `README.md` called this out explicitly as a known gap after Milestone 4). Added Vitest 2 + React Testing Library (`frontend/vite.config.ts`'s `test` block, `frontend/src/test/setup.ts`) and a real `.eslintrc.cjs` (typescript-eslint + `react-hooks`/`react-refresh` rules) — `npm run lint` now actually lints and is clean.
+- [x] 28 new frontend tests across 5 files, targeted at the highest-value/highest-risk logic rather than padding a coverage number: `api/client.ts` (FastAPI error-detail extraction, the anonymous-vs-signed-in `Authorization` header split that PR #26's Codex review caught as a real bug), `hooks/useAuth.tsx` (login/logout, localStorage persistence, dropping an expired stored session — 96% file coverage), and the `LoginForm`/`RegisterForm`/`ShoppingListInput` components (100% file coverage on the three). CI (`.github/workflows/frontend-ci.yml`) now runs lint → test-with-coverage → typecheck+build on every PR, uploading the coverage report as a build artifact.
+- **Honest about scope**: overall frontend statement coverage is **27%**, not a high number — `App.tsx`, `SavingsSummary`, `OptimizedPlan`, `DealsView`, `StoreSelector`, `StripeCheckout`, `SubscriptionPlans`, `AccountView`, and `VerifyEmailPage` have zero test coverage today. No coverage threshold is enforced on the frontend CI job for that reason — gating on an arbitrary number this session picked would be theater, not a real quality bar. Broadening frontend coverage past the auth/API-client core is real follow-up work, not done here.
+- [x] Documentation polish: this README's "Running Tests" section now matches the actual tooling (backend coverage command, frontend lint/test/coverage commands) instead of the placeholder `npm test` that never worked.
+- [ ] Not done: a coverage threshold gate on the frontend CI job (see above), mutation testing, visual regression testing, load/performance testing — none of these were in the original Milestone 6 scope.
+
+**Not yet built** (needs real accounts/credentials + a further session, Milestone 7 of the phase-1 plan):
+Actual production deployment — a live domain, Postgres, and all of the above pointed at real provider accounts (Stripe, Kroger, Resend/SendGrid, Mixpanel, Sentry). The mock-data optimizer (`/api/optimize`, `/api/deals`, etc.) and its original frontend views remain fully functional and are not gated by auth.
 
 ### V1 (Roadmap)
 - [ ] Real store API integrations (public data only)
@@ -319,13 +328,18 @@ Full test/coverage tooling and documentation polish (Milestone 6), and actual pr
 
 ### Running Tests
 ```bash
-# Backend
-cd backend
-pytest
+# Backend (from repo root — conftest.py adds the root to sys.path either way)
+python -m pytest backend/tests -q
+
+# Backend with coverage (same config CI enforces — 85% minimum, see .coveragerc)
+python -m pytest backend/tests -q --cov=backend --cov-report=term-missing --cov-fail-under=85
 
 # Frontend
 cd frontend
-npm test
+npm run lint            # ESLint (typescript-eslint + react-hooks/react-refresh rules)
+npm test                # Vitest, run once
+npm run test:watch      # Vitest, watch mode
+npm run test:coverage   # Vitest with a v8 coverage report
 ```
 
 ### Code Structure

@@ -154,6 +154,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 }
 
+// Standard context-file pattern (provider + hook in one file) — Fast Refresh
+// still works, it just can't statically prove it.
+// eslint-disable-next-line react-refresh/only-export-components
 export function useAuth(): AuthContextValue {
   const ctx = useContext(AuthContext);
   if (!ctx) {
