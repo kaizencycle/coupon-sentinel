@@ -42,6 +42,7 @@ from .providers import (
 from .auth import router as auth_router
 from .user_routes import router as user_router
 from .kroger_routes import router as kroger_router
+from .deal_event_routes import router as deal_event_router
 from .database import init_db
 
 
@@ -84,6 +85,7 @@ app.add_middleware(
 app.include_router(auth_router)
 app.include_router(user_router)
 app.include_router(kroger_router)
+app.include_router(deal_event_router)
 
 
 # ============================================================================

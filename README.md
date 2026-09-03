@@ -268,8 +268,16 @@ Milestone 2 (Kroger Integration) is partially implemented:
 - [x] `GET /api/kroger/search`, `GET /api/kroger/products/{id}` — persist results as `price_observations` rows with `source=kroger_api` (`backend/kroger_routes.py`, `backend/engines/kroger_price_engine.py`); return `503` until credentials are set, by design
 - [ ] Not done: wiring Kroger data into `/api/optimize` (the mock-data optimizer is untouched), store-location lookup, digital coupon endpoint, frontend store selector using real data
 
-**Not yet built** (needs real accounts/credentials + further sessions, roughly Milestones 3-7 of the phase-1 plan):
-deal-inference engine wired to live data, email verification, frontend auth/billing/dashboard pages, Mixpanel/Sentry, and production deployment of this new surface. The mock-data optimizer (`/api/optimize`, `/api/deals`, etc.) and its frontend remain fully functional and are not gated by auth.
+Milestone 3 (Deal Engine & Evidence Layer) is partially implemented:
+
+- [x] `backend/engines/deal_inference_engine.py` — infers `price_drop` deals (latest observation ≥10% below the product's historical median) and `coupon` deals (matched against the existing mock coupon catalog) from real, DB-persisted `price_observations`; each deal event links back to the observation id(s) that support it
+- [x] `POST /api/deal-events/infer`, `GET /api/deal-events` (`backend/deal_event_routes.py`) — run inference over persisted observations and materialize/list `deal_events` rows, ranked by savings
+- Deliberately a **separate namespace** from `/api/deals` — that endpoint is PR-1/2/3's richer mock-fixture evidence layer (zip_code/retailer/evidence_type/confidence-label schema); this is the literal Milestone-3 deliverable operating on the simpler Milestone-1 DB schema. Unifying the two evidence layers is real follow-up work, not done here.
+- **Known limitation**: coupon matching is a coarse substring match of a coupon's `item_filter` (e.g. "milk") against `product_id`. That works for human-readable test/community product IDs but Kroger's real product IDs are opaque UPC-style numbers — coupon matches against real Kroger data will rarely fire until a product name/category field is added to the observation schema.
+- [ ] Not done: real coupon provider (Phase 2 per the original roadmap — mock coupons are the intended Phase 1 source), stale-coupon/expiry handling, wiring `/api/optimize` or the frontend to these deal events
+
+**Not yet built** (needs real accounts/credentials + further sessions, roughly Milestones 4-7 of the phase-1 plan):
+email verification, frontend auth/billing/dashboard pages, Mixpanel/Sentry, and production deployment of this new surface. The mock-data optimizer (`/api/optimize`, `/api/deals`, etc.) and its frontend remain fully functional and are not gated by auth.
 
 ### V1 (Roadmap)
 - [ ] Real store API integrations (public data only)
