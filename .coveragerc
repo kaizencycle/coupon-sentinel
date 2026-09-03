@@ -1,0 +1,13 @@
+[run]
+source = backend
+omit =
+    backend/run.py
+    backend/tests/*
+    backend/migrations/*
+
+[report]
+show_missing = True
+skip_covered = False
+exclude_lines =
+    pragma: no cover
+    if __name__ == .__main__.:
