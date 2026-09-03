@@ -66,7 +66,19 @@ curl http://localhost:8000/api/subscriptions/plans
 `POST /api/user/subscription` and the Stripe webhook return `503` until
 `STRIPE_SECRET_KEY` (and `STRIPE_PRICE_ID_PRO` / `STRIPE_PRICE_ID_PREMIUM`)
 are set — that's intentional: it fails loudly instead of pretending to bill
-someone with no real Stripe account behind it.
+someone with no real Stripe account behind it. Same pattern for
+`POST /api/auth/resend-verification`, which needs `RESEND_API_KEY` or
+`SENDGRID_API_KEY`.
+
+### Try the auth + subscription UI
+
+With both the backend (above) and frontend (`cd frontend && npm run dev`)
+running, open http://localhost:5173 and click the **Account** tab: register,
+view your profile, list plans, and try subscribing/verifying — both will
+show a clean "not configured" error rather than fail silently, since this
+project has no real Stripe or email-provider credentials yet. Set
+`VITE_STRIPE_PUBLIC_KEY` (`frontend/.env.example`) to render an actual
+Stripe payment form instead of that message.
 
 ### 2. Start the Frontend
 

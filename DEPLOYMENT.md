@@ -169,10 +169,21 @@ docker-compose up --build
 | `STRIPE_SECRET_KEY` | For billing | — | Real key from Michael. Without it, `/api/user/subscription` and the webhook return `503`. |
 | `STRIPE_WEBHOOK_SECRET` | For billing | — | From the Stripe Dashboard webhook endpoint config. |
 | `STRIPE_PRICE_ID_PRO` / `STRIPE_PRICE_ID_PREMIUM` | For billing | — | Stripe recurring Price IDs for the Pro/Premium tiers. |
+| `RESEND_API_KEY` | For email | — | Checked first. Without it (or `SENDGRID_API_KEY`), `/api/auth/resend-verification` returns `503`. |
+| `SENDGRID_API_KEY` | For email | — | Fallback if `RESEND_API_KEY` is unset. |
+| `EMAIL_FROM` | No | `onboarding@resend.dev` | Sender address for verification emails. |
+| `FRONTEND_URL` | No | `http://localhost:5173` | Base URL the verification link points to. Set to the real frontend URL in production. |
+| `KROGER_CLIENT_ID` / `KROGER_CLIENT_SECRET` | For Kroger | — | From https://developer.kroger.com. Without them, `/api/kroger/*` returns `503`. |
 
-See `.env.example` (repo root) for the complete list, including vars reserved
-for later milestones (Kroger, SendGrid/Resend, Mixpanel, Sentry) that aren't
-read by the app yet.
+### Frontend
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `VITE_STRIPE_PUBLIC_KEY` | For billing UI | — | Stripe publishable key. Without it, the subscribe flow still creates the subscription server-side, but the payment form shows "Stripe isn't configured" instead of a card element. |
+
+See `.env.example` (repo root) and `frontend/.env.example` for the complete
+lists, including vars reserved for later milestones (Mixpanel, Sentry) that
+aren't read by the app yet.
 
 ### Database migrations (Alembic)
 

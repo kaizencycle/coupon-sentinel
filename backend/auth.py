@@ -22,11 +22,14 @@ from sqlalchemy.orm import Session
 
 from backend.database import get_db
 from backend.db_models import User
+from backend.engines.email_engine import send_email
 
 JWT_SECRET = os.environ.get("JWT_SECRET") or secrets.token_urlsafe(32)
 JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_TOKEN_EXPIRE_DAYS = 30
+EMAIL_VERIFICATION_EXPIRE_HOURS = 24
+FRONTEND_URL = os.environ.get("FRONTEND_URL", "http://localhost:5173")
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 bearer_scheme = HTTPBearer(auto_error=False)
@@ -64,6 +67,12 @@ def create_refresh_token(user_id: int) -> str:
     return _create_token(str(user_id), timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS), "refresh")
 
 
+def create_email_verification_token(user_id: int) -> str:
+    return _create_token(
+        str(user_id), timedelta(hours=EMAIL_VERIFICATION_EXPIRE_HOURS), "email_verification"
+    )
+
+
 def decode_token(token: str, expected_type: str) -> str:
     """Return the subject (user id as str), or raise HTTPException(401)."""
     try:
@@ -96,6 +105,10 @@ class LoginRequest(BaseModel):
 
 class RefreshRequest(BaseModel):
     refresh_token: str
+
+
+class VerifyEmailRequest(BaseModel):
+    token: str
 
 
 class TokenResponse(BaseModel):
@@ -192,3 +205,40 @@ async def refresh(request: RefreshRequest, db: Session = Depends(get_db)):
         access_token=create_access_token(user.id),
         refresh_token=create_refresh_token(user.id),
     )
+
+
+@router.post("/resend-verification")
+async def resend_verification(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """
+    Send (or resend) the email verification link.
+
+    Not called automatically on register — a registration succeeding
+    shouldn't depend on an email provider being configured. Returns 503
+    if neither RESEND_API_KEY nor SENDGRID_API_KEY is set, same pattern as
+    Stripe/Kroger, rather than silently pretending the email went out.
+    """
+    if user.is_email_verified:
+        return {"status": "already_verified"}
+
+    token = create_email_verification_token(user.id)
+    verify_link = f"{FRONTEND_URL}/verify-email?token={token}"
+
+    send_email(
+        to=user.email,
+        subject="Verify your Coupon Sentinel email",
+        html=f'<p>Confirm your email for Coupon Sentinel:</p><p><a href="{verify_link}">{verify_link}</a></p>'
+        f"<p>This link expires in {EMAIL_VERIFICATION_EXPIRE_HOURS} hours.</p>",
+    )
+    return {"status": "sent"}
+
+
+@router.post("/verify-email")
+async def verify_email(request: VerifyEmailRequest, db: Session = Depends(get_db)):
+    user_id = decode_token(request.token, expected_type="email_verification")
+    user = db.get(User, int(user_id))
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    user.is_email_verified = True
+    db.commit()
+    return {"status": "verified", "email": user.email}

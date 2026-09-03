@@ -1,5 +1,7 @@
 """Tests for JWT authentication (register / login / refresh / current user)."""
 
+from backend import auth as auth_module
+
 
 def _register(client, email="user@example.com", password="password123"):
     return client.post("/api/auth/register", json={"email": email, "password": password})
@@ -94,3 +96,96 @@ class TestCurrentUser:
         data = response.json()
         assert data["email"] == "profile@example.com"
         assert data["tier"] == "free"
+
+
+class TestEmailVerification:
+    def test_resend_verification_requires_auth(self, db_client):
+        client, _ = db_client
+        response = client.post("/api/auth/resend-verification")
+        assert response.status_code == 401
+
+    def test_resend_verification_without_provider_returns_503(self, db_client):
+        # No RESEND_API_KEY/SENDGRID_API_KEY set in the test environment —
+        # send_email() itself raises 503, same as Stripe/Kroger when unconfigured.
+        client, _ = db_client
+        tokens = _register(client, email="noemail@example.com").json()
+
+        response = client.post(
+            "/api/auth/resend-verification",
+            headers={"Authorization": f"Bearer {tokens['access_token']}"},
+        )
+        assert response.status_code == 503
+
+    def test_resend_verification_sends_when_configured(self, db_client, monkeypatch):
+        client, _ = db_client
+        tokens = _register(client, email="sendme@example.com").json()
+
+        captured = {}
+
+        def _fake_send_email(to, subject, html):
+            captured["to"] = to
+            captured["subject"] = subject
+            captured["html"] = html
+            return {"id": "email_123"}
+
+        monkeypatch.setattr(auth_module, "send_email", _fake_send_email)
+
+        response = client.post(
+            "/api/auth/resend-verification",
+            headers={"Authorization": f"Bearer {tokens['access_token']}"},
+        )
+        assert response.status_code == 200
+        assert response.json() == {"status": "sent"}
+        assert captured["to"] == "sendme@example.com"
+        assert "verify-email?token=" in captured["html"]
+
+    def test_resend_verification_short_circuits_if_already_verified(self, db_client):
+        client, session_factory = db_client
+        tokens = _register(client, email="already@example.com").json()
+
+        db = session_factory()
+        from backend.db_models import User
+
+        user = db.query(User).filter_by(email="already@example.com").first()
+        user.is_email_verified = True
+        db.commit()
+        db.close()
+
+        response = client.post(
+            "/api/auth/resend-verification",
+            headers={"Authorization": f"Bearer {tokens['access_token']}"},
+        )
+        assert response.status_code == 200
+        assert response.json() == {"status": "already_verified"}
+
+    def test_verify_email_with_valid_token(self, db_client):
+        client, session_factory = db_client
+        tokens = _register(client, email="verifyme@example.com").json()
+
+        db = session_factory()
+        from backend.db_models import User
+
+        user = db.query(User).filter_by(email="verifyme@example.com").first()
+        assert user.is_email_verified is False
+        token = auth_module.create_email_verification_token(user.id)
+        db.close()
+
+        response = client.post("/api/auth/verify-email", json={"token": token})
+        assert response.status_code == 200
+        assert response.json() == {"status": "verified", "email": "verifyme@example.com"}
+
+        db2 = session_factory()
+        refreshed = db2.query(User).filter_by(email="verifyme@example.com").first()
+        assert refreshed.is_email_verified is True
+        db2.close()
+
+    def test_verify_email_rejects_access_token(self, db_client):
+        client, _ = db_client
+        tokens = _register(client, email="wrongtype@example.com").json()
+        response = client.post("/api/auth/verify-email", json={"token": tokens["access_token"]})
+        assert response.status_code == 401
+
+    def test_verify_email_rejects_garbage_token(self, db_client):
+        client, _ = db_client
+        response = client.post("/api/auth/verify-email", json={"token": "not-a-jwt"})
+        assert response.status_code == 401

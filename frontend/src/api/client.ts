@@ -11,6 +11,12 @@ import type {
   DealsResponse,
   DealDetailResponse,
   PriceObservationsResponse,
+  AuthTokens,
+  UserProfile,
+  PlansResponse,
+  CreateSubscriptionResponse,
+  CancelSubscriptionResponse,
+  ApiErrorBody,
 } from '../types';
 
 // Use relative URL in development (Vite proxy handles it)
@@ -18,7 +24,9 @@ import type {
 const API_BASE = import.meta.env.VITE_API_URL || '';
 
 /**
- * Generic fetch wrapper with error handling
+ * Generic fetch wrapper with error handling. Extracts FastAPI's
+ * {"detail": "..."} error shape when present so callers get a readable
+ * message ("Invalid email or password") instead of raw JSON text.
  */
 async function fetchAPI<T>(
   endpoint: string,
@@ -36,10 +44,21 @@ async function fetchAPI<T>(
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`API Error (${response.status}): ${errorText}`);
+    let message = errorText;
+    try {
+      const parsed = JSON.parse(errorText) as ApiErrorBody;
+      if (parsed.detail) message = parsed.detail;
+    } catch {
+      // Not JSON — use the raw text as-is.
+    }
+    throw new Error(message || `API Error (${response.status})`);
   }
 
   return response.json();
+}
+
+function authHeaders(accessToken: string): HeadersInit {
+  return { Authorization: `Bearer ${accessToken}` };
 }
 
 // ============================================================================
@@ -148,4 +167,75 @@ export async function getPriceObservations(params?: {
   return fetchAPI<PriceObservationsResponse>(
     `/api/price-observations${query ? `?${query}` : ''}`
   );
+}
+
+// ============================================================================
+// Auth (Milestone 4)
+// ============================================================================
+
+export async function registerUser(email: string, password: string): Promise<AuthTokens> {
+  return fetchAPI<AuthTokens>('/api/auth/register', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+export async function loginUser(email: string, password: string): Promise<AuthTokens> {
+  return fetchAPI<AuthTokens>('/api/auth/login', {
+    method: 'POST',
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+export async function refreshTokens(refreshToken: string): Promise<AuthTokens> {
+  return fetchAPI<AuthTokens>('/api/auth/refresh', {
+    method: 'POST',
+    body: JSON.stringify({ refresh_token: refreshToken }),
+  });
+}
+
+export async function getProfile(accessToken: string): Promise<UserProfile> {
+  return fetchAPI<UserProfile>('/api/user/profile', {
+    headers: authHeaders(accessToken),
+  });
+}
+
+export async function resendVerificationEmail(accessToken: string): Promise<{ status: string }> {
+  return fetchAPI<{ status: string }>('/api/auth/resend-verification', {
+    method: 'POST',
+    headers: authHeaders(accessToken),
+  });
+}
+
+export async function verifyEmail(token: string): Promise<{ status: string; email: string }> {
+  return fetchAPI<{ status: string; email: string }>('/api/auth/verify-email', {
+    method: 'POST',
+    body: JSON.stringify({ token }),
+  });
+}
+
+// ============================================================================
+// Subscriptions / Billing (Milestone 4)
+// ============================================================================
+
+export async function listPlans(): Promise<PlansResponse> {
+  return fetchAPI<PlansResponse>('/api/subscriptions/plans');
+}
+
+export async function createSubscription(
+  accessToken: string,
+  tier: 'pro' | 'premium'
+): Promise<CreateSubscriptionResponse> {
+  return fetchAPI<CreateSubscriptionResponse>('/api/user/subscription', {
+    method: 'POST',
+    headers: authHeaders(accessToken),
+    body: JSON.stringify({ tier }),
+  });
+}
+
+export async function cancelSubscription(accessToken: string): Promise<CancelSubscriptionResponse> {
+  return fetchAPI<CancelSubscriptionResponse>('/api/user/subscription', {
+    method: 'DELETE',
+    headers: authHeaders(accessToken),
+  });
 }
